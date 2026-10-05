@@ -3,22 +3,33 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: "Script file in stories/ (e.g. stories/my-video.txt)"
-        required: true
+        description: "Script file in stories/ (e.g. stories/sample.txt)"
+        default: "stories/sample.txt"
       voice:
-        description: "Edge voice (placeholder until your own voice is added)"
+        description: "Edge voice"
         default: "en-US-AriaNeural"
+      audio_dir:
+        description: "Optional folder with your own recordings (001.wav, 002.mp3 ...)"
+        default: ""
 jobs:
   render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+        with: { python-version: "3.11" }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install pillow numpy edge-tts
-      - run: python generate.py "${{ inputs.script }}" --voice "${{ inputs.voice }}"
+      - name: Render
+        run: |
+          if [ -n "${{ inputs.audio_dir }}" ]; then
+            python generate.py "${{ inputs.script }}" --audio-dir "${{ inputs.audio_dir }}"
+          else
+            python generate.py "${{ inputs.script }}" --voice "${{ inputs.voice }}"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: video
-          path: output/*
+          path: |
+            output/*.mp4
+            output/*.srt
