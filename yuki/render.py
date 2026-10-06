@@ -215,6 +215,7 @@ def render(beats, args, out_path, tmp):
     theme_changed_at = -99.0
     dt = 1.0 / FPS
     heading_chip = {}
+    run, prev_lv = 0, 0
     for fr in range(n_frames):
         t = fr / FPS
         while cur + 1 < len(tl) and t >= tl[cur + 1]["start"]:
@@ -244,7 +245,11 @@ def render(beats, args, out_path, tmp):
         # ---- character
         speaking = lt < e["speech"]
         lv = int(lvl[fr]) if speaking else 0
-        mouth = {0: 0, 1: 3, 2: 1, 3: 2}[lv]
+        if lv != prev_lv:
+            run += 1
+            prev_lv = lv
+        # vary the open shapes from syllable to syllable so the mouth doesn't loop mechanically
+        mouth = {0: 0, 1: 3, 2: (1 if run % 2 == 0 else 3), 3: (2 if run % 3 else 1)}[lv]
         if b.face == "happy" and lv >= 3:
             mouth = 4
         pose = b.pose if (speaking or lt < e["speech"] + 0.25) else "relax"
