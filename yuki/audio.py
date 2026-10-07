@@ -1,5 +1,5 @@
 """Voice backends, wav helpers and the audio -> mouth-shape tracker."""
-import asyncio, re, subprocess, time, wave, zlib
+import asyncio, hashlib, re, subprocess, time, wave, zlib
 from pathlib import Path
 import numpy as np
 
@@ -62,6 +62,53 @@ def synth_edge(text, voice, rate, tmp):
     return trim(read_wav(wav))
 
 
+
+# ---------------------------------------------------------------- cloned voice (Chatterbox, MIT licence, free, runs on CPU)
+_CB = {}
+
+
+def _chatterbox():
+    if "m" not in _CB:
+        import torch
+        _orig = torch.load
+        torch.load = lambda *a, **k: _orig(*a, **{**k, "map_location": torch.device("cpu")})  # CPU-only runners
+        from chatterbox.tts import ChatterboxTTS
+        print("  loading the voice model (first time takes a few minutes)...", flush=True)
+        _CB["m"] = ChatterboxTTS.from_pretrained(device="cpu")
+    return _CB["m"]
+
+
+def _file_md5(path):
+    return hashlib.md5(Path(path).read_bytes()).hexdigest()
+
+
+def synth_clone(text, ref, tmp, exaggeration=0.5, cfg=0.5):
+    """Speak `text` in the voice of the recording `ref`. Sentence by sentence; finished sentences are cached on disk
+    so a re-run (or a crashed run) does not start from zero."""
+    if not ref or not Path(ref).exists():
+        raise SystemExit("Cloned voice needs a sample of your voice: put it at voice/ref.wav (10-30 s, clean, one speaker) "
+                         "or pass --ref path/to/sample.wav")
+    cache = Path(tmp) / "clone_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    rid = _file_md5(ref)[:10]
+    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
+    pieces = []
+    for sent in sents:
+        key = hashlib.md5(f"{rid}|{exaggeration}|{cfg}|{sent}".encode()).hexdigest()[:16]
+        f = cache / f"{key}.wav"
+        if not f.exists():
+            import torchaudio
+            m = _chatterbox()
+            wav = m.generate(sent, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=cfg)
+            raw = cache / f"{key}_raw.wav"
+            torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sr)
+            to_wav(raw, f)
+            raw.unlink(missing_ok=True)
+        pieces.append(trim(read_wav(f), keep=0.04))
+        pieces.append(silence(0.16))
+    return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
+
+
 _FORMANTS = {"a": (730, 1090), "e": (530, 1840), "i": (270, 2290), "o": (570, 840), "u": (300, 870)}
 
 
@@ -112,6 +159,8 @@ def synth(text, args, idx, tmp):
         raise SystemExit(f"Missing recording for beat {idx + 1} in {args.audio_dir} (expected {idx + 1:03d}.wav/.mp3)")
     if args.tts == "edge":
         return synth_edge(text, args.voice, args.rate, tmp)
+    if args.tts == "clone":
+        return synth_clone(text, getattr(args, "ref", None), tmp, getattr(args, "exaggeration", 0.5), getattr(args, "cfg", 0.5))
     if args.tts == "babble":
         return synth_babble(text)
     return silent_words(text)
