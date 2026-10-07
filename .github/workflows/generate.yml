@@ -1,35 +1,121 @@
-name: Generate video
+name: Make video
+
 on:
   workflow_dispatch:
     inputs:
       script:
-        description: "Script file in stories/ (e.g. stories/sample.txt)"
+        description: "Script file, e.g. stories/my-video.txt"
         default: "stories/sample.txt"
       voice:
-        description: "Edge voice"
-        default: "en-US-AriaNeural"
-      audio_dir:
-        description: "Optional folder with your own recordings (001.wav, 002.mp3 ...)"
-        default: ""
+        description: "edge (instant free voice) or clone (your voice from voice/ref.wav, slow)"
+        default: "edge"
+      upload:
+        description: "Upload to the Call of Yuki YouTube channel? (true/false)"
+        default: "false"
+      privacy:
+        description: "YouTube visibility: private, unlisted or public"
+        default: "private"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render
+  cancel-in-progress: false
+
 jobs:
   render:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      SCRIPT: ${{ github.event.inputs.script }}
+      VOICE: ${{ github.event.inputs.voice }}
+      UPLOAD: ${{ github.event.inputs.upload }}
+      PRIVACY: ${{ github.event.inputs.privacy }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check inputs
+        run: |
+          [[ "$SCRIPT" =~ ^stories/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like stories/name.txt"; exit 1; }
+          [[ "$VOICE" == "edge" || "$VOICE" == "clone" ]] || { echo "::error::voice must be edge or clone"; exit 1; }
+          [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
+          test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
+          if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.wav (10-30 seconds of your clean voice) or pick the edge voice."; exit 1; }; fi
+
+      - name: System dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
+          for i in 1 2 3; do
+            sudo apt-get update -y -o Acquire::Retries=3 || true
+            sudo apt-get install -y ffmpeg && break
+            echo "apt attempt $i failed, retrying..."; sleep 10
+          done
+
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pip install pillow numpy edge-tts
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Install the voice-cloning model (clone only)
+        if: ${{ github.event.inputs.voice == 'clone' }}
+        run: |
+          pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install chatterbox-tts
+
+      - name: Cache voice model files
+        if: ${{ github.event.inputs.voice == 'clone' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-chatterbox-v1
+
+      - name: Cache finished sentences (so a re-run does not start over)
+        if: ${{ github.event.inputs.voice == 'clone' }}
+        uses: actions/cache@v4
+        with:
+          path: .work
+          key: clone-sentences-${{ github.run_id }}
+          restore-keys: clone-sentences-
+
       - name: Render
         run: |
-          if [ -n "${{ inputs.audio_dir }}" ]; then
-            python generate.py "${{ inputs.script }}" --audio-dir "${{ inputs.audio_dir }}"
+          mkdir -p output
+          name=$(basename "${SCRIPT%.txt}")
+          if [ "$VOICE" = "clone" ]; then
+            python -u generate.py "$SCRIPT" --tts clone --out "output/$name.mp4"
           else
-            python generate.py "${{ inputs.script }}" --voice "${{ inputs.voice }}"
+            python -u generate.py "$SCRIPT" --tts edge --out "output/$name.mp4"
           fi
+          ls -la output
+
       - uses: actions/upload-artifact@v4
         with:
           name: video
           path: |
             output/*.mp4
             output/*.srt
+
+      - name: Upload to YouTube
+        if: ${{ github.event.inputs.upload == 'true' }}
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+          YT_ACCOUNT_ID: ${{ secrets.YT_ACCOUNT_ID }}
+        run: |
+          if [ -z "$COMPOSIO_API_KEY" ]; then echo "::error::Add the COMPOSIO_API_KEY repository secret to enable YouTube upload."; exit 1; fi
+          name=$(basename "${SCRIPT%.txt}")
+          mkdir -p results
+          RESULT_JSON="results/$name.json" python -u publish_youtube.py "output/$name.mp4" "$SCRIPT"
+
+      - name: Save the result link
+        if: ${{ github.event.inputs.upload == 'true' }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add results
+          git commit -m "Video published [skip ci]" || echo "nothing to commit"
+          git pull --rebase || true
+          git push || true
