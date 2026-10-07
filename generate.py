@@ -2,6 +2,7 @@
 """Call of Yuki video generator: English script -> explainer video with an animated chibi narrator.
 
     python generate.py stories/my-script.txt                   # free Edge voice (needs internet)
+    python generate.py stories/my-script.txt --tts clone       # your cloned voice (voice/ref.wav), free, slow on CPU
     python generate.py stories/my-script.txt --tts babble      # offline test voice (not speech) to check animation
     python generate.py stories/my-script.txt --export-beats    # list the numbered beats (for recording your own voice)
     python generate.py stories/my-script.txt --audio-dir mine  # use your recordings: mine/001.wav, 002.mp3 ...
@@ -21,14 +22,23 @@ from yuki.render import render                       # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("script")
-    ap.add_argument("--tts", default="edge", choices=["edge", "babble", "none"])
+    ap.add_argument("--tts", default="edge", choices=["edge", "clone", "babble", "none"])
     ap.add_argument("--voice", default="en-US-AriaNeural")
     ap.add_argument("--rate", default="-4%")
+    ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.wav or .mp3)")
+    ap.add_argument("--exaggeration", type=float, default=0.5, help="clone: 0.3 calm ... 0.8 very expressive")
+    ap.add_argument("--cfg", type=float, default=0.5, help="clone: lower = faster, more relaxed pacing")
     ap.add_argument("--audio-dir")
     ap.add_argument("--out")
     ap.add_argument("--max-beats", type=int)
     ap.add_argument("--export-beats", action="store_true")
     args = ap.parse_args()
+
+    if args.tts == "clone" and not args.ref:
+        for cand in ("voice/ref.wav", "voice/ref.mp3", "voice/ref.m4a", "voice/ref.ogg", "voice/ref.flac"):
+            if (HERE / cand).exists():
+                args.ref = str(HERE / cand)
+                break
 
     name = Path(args.script).stem
     out = Path(args.out or HERE / "output" / f"{name}.mp4")
