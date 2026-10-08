@@ -7,7 +7,7 @@ on:
         description: "Script file, e.g. stories/my-video.txt"
         default: "stories/sample.txt"
       voice:
-        description: "edge (instant free voice) or clone (your voice from voice/ref.wav, slow)"
+        description: "edge (instant free voice) or clone (your voice from voice/ref.*, slow)"
         default: "edge"
       upload:
         description: "Upload to the Call of Yuki YouTube channel? (true/false)"
@@ -41,7 +41,7 @@ jobs:
           [[ "$VOICE" == "edge" || "$VOICE" == "clone" ]] || { echo "::error::voice must be edge or clone"; exit 1; }
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
-          if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.wav (10-30 seconds of your clean voice) or pick the edge voice."; exit 1; }; fi
+          if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick the edge voice."; exit 1; }; fi
 
       - name: System dependencies
         run: |
@@ -86,7 +86,9 @@ jobs:
           mkdir -p output
           name=$(basename "${SCRIPT%.txt}")
           if [ "$VOICE" = "clone" ]; then
-            python -u generate.py "$SCRIPT" --tts clone --out "output/$name.mp4"
+            src=$(ls voice/ref.* | head -1)
+            ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
+            python -u generate.py "$SCRIPT" --tts clone --ref "$RUNNER_TEMP/ref.wav" --out "output/$name.mp4"
           else
             python -u generate.py "$SCRIPT" --tts edge --out "output/$name.mp4"
           fi
