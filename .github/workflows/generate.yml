@@ -104,10 +104,10 @@ jobs:
       - name: Upload to YouTube
         if: ${{ github.event.inputs.upload == 'true' }}
         env:
-          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
-          YT_ACCOUNT_ID: ${{ secrets.YT_ACCOUNT_ID }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: |
-          if [ -z "$COMPOSIO_API_KEY" ]; then echo "::error::Add the COMPOSIO_API_KEY repository secret to enable YouTube upload."; exit 1; fi
           name=$(basename "${SCRIPT%.txt}")
           mkdir -p results
           RESULT_JSON="results/$name.json" python -u publish_youtube.py "output/$name.mp4" "$SCRIPT"
