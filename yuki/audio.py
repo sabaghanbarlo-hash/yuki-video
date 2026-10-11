@@ -40,17 +40,17 @@ def trim(a, keep=0.06, thr=0.012):
 
 
 # ---------------------------------------------------------------- voices
-async def _edge(text, voice, rate, out):
+async def _edge(text, voice, rate, out, pitch="+0Hz"):
     import edge_tts
-    await edge_tts.Communicate(text, voice, rate=rate).save(str(out))
+    await edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).save(str(out))
 
 
-def synth_edge(text, voice, rate, tmp):
+def synth_edge(text, voice, rate, tmp, pitch="+0Hz"):
     mp3, wav = Path(tmp) / "x.mp3", Path(tmp) / "x.wav"
     err = None
     for attempt in range(4):
         try:
-            asyncio.run(_edge(text, voice, rate, mp3))
+            asyncio.run(_edge(text, voice, rate, mp3, pitch))
             if mp3.exists() and mp3.stat().st_size > 500:
                 break
         except Exception as e:  # network hiccup: retry
@@ -142,6 +142,17 @@ def synth_babble(text):
     return np.concatenate(out)
 
 
+def synth_character(text, info, args, tmp):
+    """A supporting character's line: own edge voice (clone/own recordings are for the narrator only)."""
+    if args.tts in ("edge", "clone"):
+        return synth_edge(text, info["voice"], "+0%", tmp, info["pitch"])
+    if args.tts == "babble":
+        a = synth_babble(text)
+        k = 1.18 if info["gender"] == "F" else 0.86
+        return np.interp(np.arange(0, len(a), k), np.arange(len(a)), a).astype(np.float32)
+    return silent_words(text)
+
+
 def silent_words(text):
     return silence(max(1.4, len(text.split()) / 2.6))
 
@@ -158,7 +169,7 @@ def synth(text, args, idx, tmp):
                     return trim(read_wav(Path(tmp) / "x.wav"))
         raise SystemExit(f"Missing recording for beat {idx + 1} in {args.audio_dir} (expected {idx + 1:03d}.wav/.mp3)")
     if args.tts == "edge":
-        return synth_edge(text, args.voice, args.rate, tmp)
+        return synth_edge(text, args.voice, args.rate, tmp, getattr(args, "pitch", "+0Hz"))
     if args.tts == "clone":
         return synth_clone(text, getattr(args, "ref", None), tmp, getattr(args, "exaggeration", 0.5), getattr(args, "cfg", 0.5))
     if args.tts == "babble":
