@@ -1,0 +1,38 @@
+name: Match my voice
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  match:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: System dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
+          for i in 1 2 3; do
+            sudo apt-get update -y -o Acquire::Retries=3 || true
+            sudo apt-get install -y ffmpeg && break
+            sleep 10
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy edge-tts
+      - name: Find the closest built-in voice
+        run: |
+          ref=$(ls voice/ref.* | head -1)
+          python -u tools/match_voice.py "$ref"
+      - name: Save the result
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add voice/match.json
+          git commit -m "Save the voice that best matches the sample" || echo "nothing to commit"
+          git pull --rebase || true
+          git push
