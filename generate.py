@@ -6,10 +6,11 @@
     python generate.py stories/my-script.txt --tts babble      # offline test voice (not speech) to check animation
     python generate.py stories/my-script.txt --export-beats    # list the numbered beats (for recording your own voice)
     python generate.py stories/my-script.txt --audio-dir mine  # use your recordings: mine/001.wav, 002.mp3 ...
+    python generate.py stories/my-story.txt --mode story       # storytelling video: cast, speech bubbles, sound effects
 
-See yuki/script.py for the script format and the optional [cues].
+See yuki/script.py (explainer) and yuki/story.py (story) for the script formats and the optional [cues].
 """
-import argparse, sys
+import argparse, json, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -23,8 +24,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("script")
     ap.add_argument("--tts", default="edge", choices=["edge", "clone", "babble", "none"])
-    ap.add_argument("--voice", default="en-US-AriaNeural")
-    ap.add_argument("--rate", default="-4%")
+    ap.add_argument("--mode", default="explainer", choices=["explainer", "story"])
+    ap.add_argument("--voice", default=None, help="edge voice name (default: the voice matched to yours in voice/match.json)")
+    ap.add_argument("--pitch", default=None, help='edge pitch shift, e.g. "-8Hz"')
+    ap.add_argument("--rate", default=None)
+    ap.add_argument("--no-music", action="store_true", help="story mode: no background music")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.wav or .mp3)")
     ap.add_argument("--exaggeration", type=float, default=0.5, help="clone: 0.3 calm ... 0.8 very expressive")
     ap.add_argument("--cfg", type=float, default=0.5, help="clone: lower = faster, more relaxed pacing")
@@ -33,6 +37,18 @@ def main():
     ap.add_argument("--max-beats", type=int)
     ap.add_argument("--export-beats", action="store_true")
     args = ap.parse_args()
+
+    match = {}
+    mp = HERE / "voice" / "match.json"
+    if mp.exists():
+        try:
+            match = json.loads(mp.read_text())
+        except Exception:
+            match = {}
+    args.voice = args.voice or match.get("voice") or "en-US-AriaNeural"
+    args.pitch = args.pitch or match.get("pitch") or "+0Hz"
+    args.rate = args.rate or match.get("rate") or "-4%"
+    args.music = not args.no_music
 
     if args.tts == "clone" and not args.ref:
         for cand in ("voice/ref.wav", "voice/ref.mp3", "voice/ref.m4a", "voice/ref.ogg", "voice/ref.flac"):
@@ -45,12 +61,22 @@ def main():
     tmp = HERE / ".work" / name
     tmp.mkdir(parents=True, exist_ok=True)
 
-    title, beats = parse_script(args.script)
-    if args.max_beats:
-        beats = beats[: args.max_beats]
-    beats = plan(title, beats, Path(args.script).parent.parent)
-    spoken = [b for b in beats if not b.title]
-    print(f"{len(spoken)} beats" + (f", title: {title}" if title else ""))
+    if args.mode == "story":
+        from yuki.story import parse_story, plan_story
+        from yuki.render_story import render_story
+        title, beats, decl = parse_story(args.script)
+        if args.max_beats:
+            beats = beats[: args.max_beats]
+        beats, cast = plan_story(title, beats, decl)
+        spoken = [b for b in beats if not b.title]
+        print(f"story: {len(spoken)} lines, cast: {', '.join(cast) or 'narrator only'}" + (f", title: {title}" if title else ""))
+    else:
+        title, beats = parse_script(args.script)
+        if args.max_beats:
+            beats = beats[: args.max_beats]
+        beats = plan(title, beats, Path(args.script).parent.parent)
+        spoken = [b for b in beats if not b.title]
+        print(f"{len(spoken)} beats" + (f", title: {title}" if title else ""))
 
     if args.export_beats:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -59,7 +85,7 @@ def main():
         print(f"wrote {p}")
         return
 
-    total = render(beats, args, out, tmp)
+    total = render_story(beats, cast, args, out, tmp) if args.mode == "story" else render(beats, args, out, tmp)
     print(f"done: {out}  ({total:.1f}s)  subtitles: {out.with_suffix('.srt')}")
 
 
