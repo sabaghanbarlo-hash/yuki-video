@@ -15,21 +15,45 @@ SHOULDER = {"L": (172, 376), "R": (308, 376)}
 UPPER, FORE = 54, 50
 
 INK = (40, 32, 44)
-HAIR = (28, 28, 38)
+HAIR = (70, 44, 42)
 HAIR_HI = (92, 98, 124)
-HAIR_BACK = (16, 16, 24)
-HAIR_SIDE = (40, 40, 56)
-SLEEVE = (90, 144, 96)
-SKIN = (255, 224, 198)
+HAIR_BACK = (70, 44, 42)
+HAIR_SIDE = (70, 44, 42)
+SLEEVE = (100, 156, 106)
+SKIN = (255, 225, 204)
 SKIN_SH = (238, 196, 170)
 BLUSH = (246, 150, 150)
-GREEN, GREEN_D, GREEN_L = (104, 158, 106), (76, 124, 86), (138, 186, 132)
-RED, RED_D, RED_L = (208, 46, 54), (148, 28, 40), (236, 96, 96)
-SKIRT = (58, 54, 72)
+GREEN, GREEN_D, GREEN_L = (112, 168, 116), (86, 140, 98), (138, 186, 132)
+RED, RED_D, RED_L = (222, 64, 72), (170, 40, 52), (240, 110, 110)
+SKIRT = (72, 66, 90)
 LEG, LEG_HI = (36, 34, 46), (74, 72, 90)
 CREAM = (244, 236, 218)
 MOUTH_IN, TONGUE = (112, 34, 48), (238, 120, 132)
 MOUTH_LN = (150, 60, 70)
+
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Look:
+    """Everything that makes one character different from another."""
+    hair: tuple = (70, 44, 42)
+    skin: tuple = (255, 225, 204)
+    top: tuple = (112, 168, 116)
+    top_d: tuple = (86, 140, 98)
+    sleeve: tuple = (100, 156, 106)
+    bottom: tuple = (72, 66, 90)
+    legs: tuple = (36, 34, 46)
+    shoes: tuple = (34, 32, 42)
+    scarf: tuple = (222, 64, 72)        # None = no scarf
+    clip: tuple = (214, 72, 78)         # None = no hair clip
+    skirt: bool = True
+    style: str = "bob"                  # bob | long | boy | bun
+    blush: tuple = (248, 172, 172)
+
+
+YUKI = Look()
 
 
 def _P(S):
@@ -83,103 +107,96 @@ def _thick(d, a, b, w, fill):
 
 
 # ------------------------------------------------------------------ head
-def head_base(mouth, eyes, brow, gaze):
-    """mouth 0..4, eyes 'open'|'blink'|'happy'|'wide', brow 'neutral'|'raised'|'worried'|'happy', gaze -1..1"""
+EYE = (56, 36, 46)
+LASH = (56, 36, 46)
+CLIP, CLIP_C = (214, 72, 78), (252, 232, 208)
+
+
+def head_base(mouth, eyes, brow, gaze, look=YUKI):
+    """Smooth flat chibi head built like the Tiny Japanese characters: one soft bell of hair, wide round face,
+    scalloped fringe, flat oval eyes with two light dots, round blush, tiny smile. No outlines.
+    mouth 0..4, eyes 'open'|'blink'|'happy'|'wide', brow 'neutral'|'raised'|'worried'|'happy', gaze -1..1"""
     im, d = _canvas(HW, HH)
     P = _P(SS)
-    # back hair (bob)
-    _ell(d, (46, 52, 354, 290), HAIR_BACK)
-    _round(d, (46, 150, 354, 312), 70, HAIR_BACK)
+    HAIR, SKIN = look.hair, look.skin
+    # hair: dome + straight sides with rounded bottom corners
+    bottom = {"bob": 322, "long": 372, "boy": 250, "bun": 300}[look.style]
+    _ell(d, (34, 22, 366, 300), HAIR)
+    if look.style == "boy":
+        _round(d, (40, 150, 360, 250), 40, HAIR)
+    else:
+        _round(d, (34, 150, 366, bottom), 62 if look.style != "long" else 40, HAIR)
+    if look.style == "bun":
+        _ell(d, (152, -6, 248, 54), HAIR, None)
     # face
-    _ell(d, (56, 96, 344, 330), SKIN)
-    # soft chin shade
-    sh = Image.new("RGBA", im.size, (0, 0, 0, 0)); sd = ImageDraw.Draw(sh)
-    sd.ellipse(P(70, 280, 330, 350), fill=SKIN_SH + (120,))
-    mask = Image.new("L", im.size, 0); ImageDraw.Draw(mask).ellipse(P(58, 98, 342, 328), fill=255)
-    sh.putalpha(Image.composite(sh.getchannel("A"), Image.new("L", im.size, 0), mask))
-    im.alpha_composite(sh)
-    d = ImageDraw.Draw(im)
+    _ell(d, (68, 104, 332, 318), SKIN)
+    # fringe: upper half of the dome + a row of soft scallops (boys: a flat swoosh)
+    cx, cy, a, b = 200, 161, 166, 139
+    top = [(cx + a * math.cos(math.radians(t)), cy + b * math.sin(math.radians(t))) for t in range(180, 361, 4)]
+    d.polygon([tuple(P(*p)) for p in top], fill=HAIR)
+    if look.style == "boy":
+        d.polygon([tuple(P(*p)) for p in [(60, 150), (340, 150), (330, 176), (280, 192), (230, 172), (190, 186), (140, 176), (80, 190), (64, 176)]], fill=HAIR)
+    else:
+        for x in (90, 134, 178, 222, 266, 310):
+            _ell(d, (x - 26, cy - 26, x + 26, cy + 26), HAIR, None)
+        d.rectangle(P(64, 150, 336, 166), fill=HAIR)
+    if look.clip:
+        _ell(d, (270, 44, 306, 80), look.clip, None)
+        _ell(d, (281, 55, 295, 69), CLIP_C, None)
 
     # blush
-    for cx in (102, 298):
-        _ell(d, (cx - 28, 278, cx + 28, 306), BLUSH + (210,), None)
+    for bx in (113, 287):
+        _ell(d, (bx - 26, 258, bx + 26, 286), look.blush, None)
 
     # eyes
-    for k, cx in enumerate((138, 262)):
-        ex, ey = cx + gaze * 6, 248
+    for cx_ in (136, 264):
+        ex, ey = cx_ + gaze * 5, 226
         if eyes in ("open", "wide"):
-            ry = 43 if eyes == "wide" else 38
-            _ell(d, (ex - 29, ey - ry, ex + 29, ey + ry), (36, 32, 46), None)
-            lower = Image.new("RGBA", im.size, (0, 0, 0, 0))
-            ImageDraw.Draw(lower).ellipse(P(ex - 29, ey - ry, ex + 29, ey + ry), fill=(78, 74, 100, 255))
-            m2 = Image.new("L", im.size, 0)
-            ImageDraw.Draw(m2).ellipse(P(ex - 29, ey - ry, ex + 29, ey + ry), fill=255)
-            ImageDraw.Draw(m2).rectangle(P(ex - 34, ey - ry - 2, ex + 34, ey + 6), fill=0)
-            lower.putalpha(m2)
-            im.alpha_composite(lower)
-            d = ImageDraw.Draw(im)
-            _ell(d, (ex - 14 + gaze * 2, ey - ry + 7, ex + 6 + gaze * 2, ey - ry + 27), (255, 255, 255), None)
-            _ell(d, (ex + 8, ey + 10, ex + 19, ey + 21), (255, 255, 255), None)
-            d.arc(P(ex - 31, ey - ry - 3, ex + 31, ey + ry), 192, 348, fill=INK, width=7 * SS)
-            wing = -1 if k == 0 else 1
-            d.line(P(ex + wing * 29, ey - ry + 10, ex + wing * 38, ey - ry + 2), fill=INK, width=5 * SS)
+            ry = 37 if eyes == "wide" else 34
+            _ell(d, (ex - 24, ey - ry, ex + 24, ey + ry), EYE, None)
+            _ell(d, (ex - 16 + gaze * 2, ey - ry + 7, ex + 1 + gaze * 2, ey - ry + 25), (255, 255, 255), None)
+            _ell(d, (ex + 6, ey + 10, ex + 17, ey + 21), (255, 255, 255), None)
+            if brow in ("angry", "sad"):
+                s_ = 1 if cx_ < 200 else -1          # +1 for the left eye
+                inner_low = brow == "angry"
+                y_in, y_out = (ey - 6, ey - 38) if inner_low else (ey - 40, ey - 8)
+                xi, xo = ex + 28 * s_, ex - 28 * s_
+                pts = [(xo, 190), (xi, 190), (xi, y_in), (xo, y_out)]
+                d.polygon([tuple(P(*p)) for p in pts], fill=SKIN)
+                d.line([tuple(P(*p)) for p in ((xo, y_out), (xi, y_in))], fill=LASH, width=5 * SS)
         elif eyes == "blink":
-            d.arc(P(ex - 29, ey - 14, ex + 29, ey + 14), 20, 160, fill=INK, width=6 * SS)
+            d.arc(P(ex - 24, ey - 12, ex + 24, ey + 12), 25, 155, fill=LASH, width=5 * SS)
         elif eyes == "happy":
-            d.arc(P(ex - 29, ey - 12, ex + 29, ey + 22), 200, 340, fill=INK, width=6 * SS)
+            d.arc(P(ex - 24, ey - 8, ex + 24, ey + 20), 205, 335, fill=LASH, width=5 * SS)
 
-    # mouth
-    mx, my = 200, 296
+    # mouth: tiny smile when closed; small soft shapes when talking
+    mx, my = 200, 290
+    MC = (96, 54, 62)
     if mouth == 0:
-        d.arc(P(mx - 20, my - 12, mx + 20, my + 8), 20, 160, fill=INK, width=4 * SS)
-    elif mouth == 1:
-        _ell(d, (mx - 9, my - 8, mx + 9, my + 9), MOUTH_IN, MOUTH_LN, 3)
-    elif mouth == 2:
-        _ell(d, (mx - 17, my - 10, mx + 17, my + 20), MOUTH_IN, MOUTH_LN, 3)
-        _ell(d, (mx - 10, my + 7, mx + 10, my + 19), TONGUE, None)
-    elif mouth == 3:
-        _ell(d, (mx - 7, my - 7, mx + 7, my + 10), MOUTH_IN, MOUTH_LN, 3)
-    else:  # 4: happy open smile
-        d.pieslice(P(mx - 20, my - 14, mx + 20, my + 16), 0, 180, fill=MOUTH_IN, outline=MOUTH_LN, width=3 * SS)
-        d.pieslice(P(mx - 11, my + 1, mx + 11, my + 15), 0, 180, fill=TONGUE)
-
-    # side locks
-    for sgn, x0 in ((1, 56), (-1, 344)):
-        pts = [(x0 - sgn * 4, 130), (x0 + sgn * 28, 116), (x0 + sgn * 42, 160), (x0 + sgn * 34, 214),
-               (x0 + sgn * 16, 248), (x0 - sgn * 6, 238)]
-        _poly(d, pts, HAIR_SIDE, INK, 4)
-    # bangs (parted, soft scallops)
-    top = _bez((54, 172), (44, 84), (140, 50), (200, 50), 14) + _bez((200, 50), (262, 50), (356, 84), (346, 172), 14)
-    tips = [(346, 170), (306, 214), (258, 198), (216, 220), (176, 178), (136, 210), (96, 230), (56, 176)]
-    low = []
-    for (a, b) in zip(tips[:-1], tips[1:]):
-        mid = ((a[0] + b[0]) / 2, min(a[1], b[1]) - 14)
-        low += _bez(a, (a[0], mid[1]), (b[0], mid[1]), b, 8)[1:]
-    _poly(d, top + low, HAIR, INK, 4)
-    # highlight sweeps
-    d.arc(P(96, 62, 262, 168), 205, 262, fill=HAIR_HI, width=9 * SS)
-    d.arc(P(210, 64, 330, 142), 250, 296, fill=HAIR_HI, width=7 * SS)
-
-    # brows
-    by = {"neutral": 194, "raised": 182, "worried": 196, "happy": 188}[brow]
-    for k, cx in enumerate((138, 262)):
-        ex = cx + gaze * 6
-        if brow == "worried":
-            a, b = ((ex - 24, by + 8), (ex + 22, by - 8)) if k == 0 else ((ex - 22, by - 8), (ex + 24, by + 8))
-        elif brow == "raised":
-            a, b = (ex - 22, by + 3), (ex + 22, by - 3)
+        if brow in ("worried", "sad"):
+            d.arc(P(mx - 12, my - 2, mx + 12, my + 10), 200, 340, fill=MC, width=3 * SS)
         else:
-            a, b = (ex - 22, by + 2), (ex + 22, by + 2)
-        mid = ((a[0] + b[0]) / 2, min(a[1], b[1]) - (5 if brow in ("raised", "happy") else 2))
-        d.line([tuple(P(*p)) for p in _bez(a, (a[0] + 8, mid[1]), (b[0] - 8, mid[1]), b, 8)], fill=INK, width=5 * SS, joint="curve")
+            d.arc(P(mx - 15, my - 12, mx + 15, my + 4), 25, 155, fill=MC, width=3 * SS)
+    elif mouth == 1:
+        _ell(d, (mx - 7, my - 6, mx + 7, my + 8), MOUTH_IN, None)
+    elif mouth == 2:
+        _ell(d, (mx - 13, my - 7, mx + 13, my + 15), MOUTH_IN, None)
+        _ell(d, (mx - 8, my + 5, mx + 8, my + 14), TONGUE, None)
+    elif mouth == 3:
+        _ell(d, (mx - 5, my - 5, mx + 5, my + 8), MOUTH_IN, None)
+    else:  # 4: happy open smile
+        d.pieslice(P(mx - 16, my - 11, mx + 16, my + 14), 0, 180, fill=MOUTH_IN)
+        d.pieslice(P(mx - 9, my + 1, mx + 9, my + 13), 0, 180, fill=TONGUE)
     return im
 
 
+
 # ------------------------------------------------------------------ body
-def body_base(phase_q, bow_q):
+def body_base(phase_q, bow_q, look=YUKI):
     """Legs, skirt, hoodie, scarf wrap, drawstrings. phase_q: -6..6 walk step, or 0."""
     im, d = _canvas(FW, FH)
     swing = phase_q / 6.0
+    LEG = look.legs if look.skirt else look.bottom
     for side, hx in (("L", 214), ("R", 266)):
         s = -swing if side == "L" else swing
         foot_x = hx + s * 26
@@ -187,41 +204,40 @@ def body_base(phase_q, bow_q):
         hip = (hx, 520)
         foot = (foot_x, 626 - lift)
         _thick(d, hip, foot, 38, LEG)
-        _thick(d, (hip[0] - 9, hip[1] + 8), (foot[0] - 9, foot[1] - 14), 5, LEG_HI)
         # shoe
-        _ell(d, (foot[0] - 30, foot[1] - 6, foot[0] + 30, foot[1] + 30), (34, 32, 42), INK, 4)
-        _ell(d, (foot[0] - 20, foot[1] - 2, foot[0] + 4, foot[1] + 8), (86, 84, 104), None)
-    # hood bunched behind the neck
-    _ell(d, (170, 326, 310, 384), GREEN_D)
+        _ell(d, (foot[0] - 30, foot[1] - 6, foot[0] + 30, foot[1] + 30), look.shoes, INK, 4)
+        _ell(d, (foot[0] - 20, foot[1] - 2, foot[0] + 4, foot[1] + 8), tuple(min(255, c + 52) for c in look.shoes), None)
+    # hood / collar bunched behind the neck
+    _ell(d, (170, 326, 310, 384), look.top_d)
     # torso
-    _round(d, (152, 340, 328, 480), 46, GREEN, INK, 4)
-    d.arc(_P(SS)(160, 360, 220, 470), 90, 160, fill=GREEN_L, width=5 * SS)
+    _round(d, (152, 340, 328, 480), 46, look.top, INK, 4)
     # pocket
-    _poly(d, [(188, 424), (292, 424), (304, 462), (176, 462)], GREEN_D, INK, 3)
+    _poly(d, [(188, 424), (292, 424), (304, 462), (176, 462)], look.top_d, INK, 3)
     # drawstrings
     for x0, x1 in ((222, 218), (258, 262)):
         _thick(d, (x0, 358), (x1, 428), 3, CREAM)
         _ell(d, (x1 - 5, 424, x1 + 5, 438), CREAM, INK, 2)
-    # skirt
-    skirt = [(160, 466), (320, 466), (350, 536), (130, 536)]
-    _poly(d, skirt, SKIRT, INK, 4)
-    d.line(_P(SS)(150, 492, 330, 492), fill=(62, 60, 76), width=3 * SS)
+    # skirt or trousers
+    if look.skirt:
+        _poly(d, [(160, 466), (320, 466), (350, 536), (130, 536)], look.bottom, INK, 4)
+    else:
+        _round(d, (166, 466, 314, 548), 30, look.bottom, INK, 4)
     # scarf wrap
-    _round(d, (170, 322, 310, 362), 20, RED, INK, 4)
-    d.arc(_P(SS)(182, 326, 298, 352), 200, 340, fill=RED_L, width=4 * SS)
+    if look.scarf:
+        _round(d, (170, 322, 310, 362), 20, look.scarf, INK, 4)
+    else:
+        _round(d, (186, 326, 294, 352), 14, look.top_d, INK, 4)
     return im
 
 
-def scarf_tail(sway_q):
+def scarf_tail(sway_q, look=YUKI):
     """Scarf tail hanging from the right of the neck; sway_q in -4..4."""
     im, d = _canvas(120, 200)
     sw = sway_q * 3
     top = (30, 8)
-    pts = [(top[0], top[1]), (top[0] + 44, top[1]), (top[0] + 54 + sw, 100), (top[0] + 50 + sw * 1.6, 170),
-           (top[0] + 22 + sw * 1.6, 188), (top[0] + 6 + sw, 160), (top[0] + 2, 90)]
-    _poly(d, pts, RED, INK, 4)
-    d.line(_P(SS)(top[0] + 14, top[1] + 14, top[0] + 20 + sw, 150), fill=RED_L, width=4 * SS)
-    d.line(_P(SS)(top[0] + 10 + sw, 176, top[0] + 46 + sw * 1.6, 168), fill=RED_D, width=4 * SS)
+    _thick(d, (top[0] + 22, top[1] + 14), (top[0] + 28 + sw * 1.6, 128), 40, look.scarf)
+    _thick(d, (top[0] + 28 + sw * 1.6, 124), (top[0] + 28 + sw * 1.6, 132), 40, tuple(int(c * .78) for c in look.scarf))
+    _thick(d, (top[0] + 22, top[1] + 14), (top[0] + 28 + sw * 1.6, 120), 40, look.scarf)
     return im
 
 
@@ -231,7 +247,7 @@ TAIL_ANCHOR = (260, 336)   # figure coords of tail top-left (+8px inset)
 ARM_R = 150   # arm canvas is a square of 2*ARM_R units centred on the shoulder
 
 
-def arm_img(side, a_q, b_q):
+def arm_img(side, a_q, b_q, look=YUKI):
     """Draw one arm on a small canvas centred on its shoulder.
     Angles in degrees (quantised) measured from straight-down, outward positive."""
     a, b = math.radians(a_q), math.radians(b_q)
@@ -240,14 +256,14 @@ def arm_img(side, a_q, b_q):
     ex, ey = sx + sgn * math.sin(a) * UPPER, sy + math.cos(a) * UPPER
     hx, hy = ex + sgn * math.sin(b) * FORE, ey + math.cos(b) * FORE
     im, d = _canvas(2 * ARM_R, 2 * ARM_R)
-    _thick(d, (sx, sy), (ex, ey), 36, SLEEVE)
-    _thick(d, (ex, ey), (hx, hy), 36, SLEEVE)
+    _thick(d, (sx, sy), (ex, ey), 36, look.sleeve)
+    _thick(d, (ex, ey), (hx, hy), 36, look.sleeve)
     # cuff + hand
     ux, uy = (hx - ex) / FORE, (hy - ey) / FORE
     cx, cy = hx - ux * 6, hy - uy * 6
-    _thick(d, (cx, cy), (hx, hy), 32, GREEN_D)
+    _thick(d, (cx, cy), (hx, hy), 32, look.top_d)
     px, py = hx + ux * 13, hy + uy * 13
-    _ell(d, (px - 18, py - 18, px + 18, py + 18), SKIN, INK, 4)
+    _ell(d, (px - 18, py - 18, px + 18, py + 18), look.skin, INK, 4)
     return im
 
 
@@ -257,24 +273,24 @@ def _small(im, scale):
 
 
 # Cache only the small, already-scaled pieces (the 3x supersampled originals are large).
-@functools.lru_cache(maxsize=64)
-def body_small(phase_q, s):
-    return _small(body_base(phase_q, 0), s)
+@functools.lru_cache(maxsize=96)
+def body_small(phase_q, s, look=YUKI):
+    return _small(body_base(phase_q, 0, look), s)
 
 
-@functools.lru_cache(maxsize=32)
-def scarf_small(sway_q, s):
-    return _small(scarf_tail(sway_q), s)
+@functools.lru_cache(maxsize=48)
+def scarf_small(sway_q, s, look=YUKI):
+    return _small(scarf_tail(sway_q, look), s)
 
 
-@functools.lru_cache(maxsize=1500)
-def arm_small(side, a_q, b_q, s):
-    return _small(arm_img(side, a_q, b_q), s)
+@functools.lru_cache(maxsize=2500)
+def arm_small(side, a_q, b_q, s, look=YUKI):
+    return _small(arm_img(side, a_q, b_q, look), s)
 
 
-@functools.lru_cache(maxsize=400)
-def head_small(mouth, eyes, brow, gaze, s):
-    return _small(head_base(mouth, eyes, brow, gaze), s)
+@functools.lru_cache(maxsize=900)
+def head_small(mouth, eyes, brow, gaze, s, look=YUKI):
+    return _small(head_base(mouth, eyes, brow, gaze, look), s)
 
 
 # ------------------------------------------------------------------ poses
@@ -298,7 +314,8 @@ POSES = {
 class Rig:
     """Animated state for one Yuki. Call update() once per frame, then draw()."""
 
-    def __init__(self, x, floor_y, scale=0.72):
+    def __init__(self, x, floor_y, scale=0.72, look=YUKI):
+        self.look = look
         self.x, self.floor_y, self.scale = float(x), floor_y, scale
         self.target_x = float(x)
         self.vx = 0.0
@@ -330,7 +347,8 @@ class Rig:
         self.front = bool(P.get("front", False))
         self.tilt += (tilt + 1.6 * math.sin(self.t * 1.1) + 1.0 * math.sin(self.t * 2.7 + 1) - self.tilt) * (1 - math.exp(-dt * 3.5))
         self.nod += ((2.2 * speaking * (0.5 + 0.5 * math.sin(self.t * 5.3)) + 1.2 * speaking) - self.nod) * (1 - math.exp(-dt * 8))
-        self.brow = {"neutral": "neutral", "curious": "raised", "worried": "worried", "happy": "happy", "excited": "raised"}.get(face, "neutral")
+        self.brow = {"neutral": "neutral", "curious": "raised", "worried": "worried", "happy": "happy", "excited": "raised",
+                     "angry": "angry", "sad": "sad", "shocked": "raised"}.get(face, "neutral")
         self.gaze += (gaze - self.gaze) * (1 - math.exp(-dt * 8))
         self.face = face
         # horizontal movement toward target with easing
@@ -355,28 +373,30 @@ class Rig:
         bob = 2.6 * math.sin(t * 1.7) + 1.0 * math.sin(t * 3.1) + (7 * abs(math.sin(self.walk * 2 * math.pi)) if moving else 0)
         if self.bounce > 0:
             bob += 14 * math.sin(self.bounce * math.pi)
-        eyes = "blink" if blink else {"happy": "happy", "excited": "wide", "curious": "wide"}.get(self.face, "open")
+        eyes = "blink" if blink else {"happy": "happy", "excited": "wide", "curious": "wide", "shocked": "wide"}.get(self.face, "open")
         if blink and self.face == "happy":
             eyes = "happy"
         gq = int(round(max(-1, min(1, self.gaze))))
         fig = Image.new("RGBA", (int(FW * s) + 2, int(FH * s) + 2), (0, 0, 0, 0))
 
-        fig.alpha_composite(body_small(phase_q, s))
+        L = self.look
+        fig.alpha_composite(body_small(phase_q, s, L))
         sway = int(round(2.4 * math.sin(t * 2.2) + self.vx / 120.0))
         sway = max(-4, min(4, sway))
-        fig.alpha_composite(scarf_small(sway, s), (int((TAIL_ANCHOR[0] - 30) * s), int((TAIL_ANCHOR[1] - 8) * s)))
+        if L.scarf:
+            fig.alpha_composite(scarf_small(sway, s, L), (int((TAIL_ANCHOR[0] - 30) * s), int((TAIL_ANCHOR[1] - 8) * s)))
         q = lambda v: int(round(v / 3.0)) * 3
         arms = [(sd, q(self.arms[sd][0]), q(self.arms[sd][1])) for sd in ("L", "R")]
 
         def paste_arm(sd, a, b):
             sx, sy = SHOULDER[sd]
-            fig.alpha_composite(arm_small(sd, a, b, s), (int((sx - ARM_R) * s), int((sy - ARM_R) * s)))
+            fig.alpha_composite(arm_small(sd, a, b, s, L), (int((sx - ARM_R) * s), int((sy - ARM_R) * s)))
 
         if not self.front:
             for sd, a, b in arms:
                 paste_arm(sd, a, b)
         # head: rotate around the neck
-        hs = head_small(int(mouth), eyes, self.brow, gq, s)
+        hs = head_small(int(mouth), eyes, self.brow, gq, s, L)
         pad = int(60 * s)
         hc = Image.new("RGBA", (hs.width + 2 * pad, hs.height + 2 * pad), (0, 0, 0, 0))
         hc.alpha_composite(hs, (pad, pad))
