@@ -9,7 +9,7 @@ permissions:
 jobs:
   match:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: System dependencies
@@ -17,17 +17,21 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
           for i in 1 2 3; do
             sudo apt-get update -y -o Acquire::Retries=3 || true
-            sudo apt-get install -y ffmpeg && break
+            sudo apt-get install -y ffmpeg espeak-ng && break
             sleep 10
           done
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install numpy edge-tts
-      - name: Find the closest built-in voice
+      - name: Install Kokoro
+        run: |
+          pip install numpy soundfile
+          pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install "kokoro>=0.9.4"
+      - name: Find the closest free voice
         run: |
           ref=$(ls voice/ref.* | head -1)
-          python -u tools/match_voice.py "$ref"
+          python -u tools/match_kokoro.py "$ref"
       - name: Save the result
         run: |
           git config user.name "github-actions"

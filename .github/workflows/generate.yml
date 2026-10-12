@@ -10,8 +10,8 @@ on:
         description: "explainer (self-improvement, explaining) or story (storytelling with a cast and sound effects)"
         default: "explainer"
       voice:
-        description: "edge (free built-in voice matched to yours) or clone (your voice from voice/ref.*, slow)"
-        default: "edge"
+        description: "kokoro (free voice matched to yours), clone (your own voice, slow) or edge (Microsoft voices, often blocked)"
+        default: "kokoro"
       upload:
         description: "Upload to the Call of Yuki YouTube channel? (true/false)"
         default: "false"
@@ -43,7 +43,7 @@ jobs:
         run: |
           [[ "$SCRIPT" =~ ^stories/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like stories/name.txt"; exit 1; }
           [[ "$MODE" == "explainer" || "$MODE" == "story" ]] || { echo "::error::mode must be explainer or story"; exit 1; }
-          [[ "$VOICE" == "edge" || "$VOICE" == "clone" ]] || { echo "::error::voice must be edge or clone"; exit 1; }
+          [[ "$VOICE" == "kokoro" || "$VOICE" == "clone" || "$VOICE" == "edge" ]] || { echo "::error::voice must be kokoro, clone or edge"; exit 1; }
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
           if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick the edge voice."; exit 1; }; fi
@@ -53,7 +53,7 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
           for i in 1 2 3; do
             sudo apt-get update -y -o Acquire::Retries=3 || true
-            sudo apt-get install -y ffmpeg && break
+            sudo apt-get install -y ffmpeg espeak-ng && break
             echo "apt attempt $i failed, retrying..."; sleep 10
           done
 
@@ -64,6 +64,19 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - run: pip install -r requirements.txt
+
+      - name: Install the Kokoro voice
+        if: ${{ github.event.inputs.voice == 'kokoro' }}
+        run: |
+          pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install "kokoro>=0.9.4" soundfile
+
+      - name: Cache Kokoro model files
+        if: ${{ github.event.inputs.voice == 'kokoro' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-kokoro-v1
 
       - name: Install the voice-cloning model (clone only)
         if: ${{ github.event.inputs.voice == 'clone' }}
@@ -95,7 +108,7 @@ jobs:
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
             python -u generate.py "$SCRIPT" --mode "$MODE" --tts clone --ref "$RUNNER_TEMP/ref.wav" --out "output/$name.mp4"
           else
-            python -u generate.py "$SCRIPT" --mode "$MODE" --tts edge --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --mode "$MODE" --tts "$VOICE" --out "output/$name.mp4"
           fi
           ls -la output
 

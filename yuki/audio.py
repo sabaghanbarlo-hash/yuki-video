@@ -63,6 +63,33 @@ def synth_edge(text, voice, rate, tmp, pitch="+0Hz"):
 
 
 
+# ---------------------------------------------------------------- Kokoro (Apache-2.0, free, runs on CPU, no online service)
+_KP = {}
+KOKORO_F = ["af_bella", "af_nicole", "af_sarah", "af_sky", "bf_emma", "af_nova", "af_heart", "bf_isabella"]
+KOKORO_M = ["am_adam", "am_michael", "am_eric", "bm_george", "am_liam", "bm_lewis", "am_puck", "bm_daniel"]
+
+
+def _kokoro(lang):
+    if lang not in _KP:
+        from kokoro import KPipeline
+        print("  loading the voice model (first time takes a minute)...", flush=True)
+        _KP[lang] = KPipeline(lang_code=lang)
+    return _KP[lang]
+
+
+def synth_kokoro(text, voice, speed, tmp):
+    """Speak `text` with a Kokoro voice (af_/am_ = American, bf_/bm_ = British). Returns mono float32 at 24 kHz."""
+    pipe = _kokoro("b" if voice[:2] in ("bf", "bm") else "a")
+    chunks = []
+    for _gs, _ps, audio in pipe(text, voice=voice, speed=float(speed)):
+        a = audio.detach().cpu().numpy() if hasattr(audio, "detach") else np.asarray(audio)
+        chunks.append(a.astype(np.float32).reshape(-1))
+        chunks.append(silence(0.08))
+    if not chunks:
+        return silence(0.5)
+    return trim(np.concatenate(chunks[:-1]))
+
+
 # ---------------------------------------------------------------- cloned voice (Chatterbox, MIT licence, free, runs on CPU)
 _CB = {}
 
@@ -144,6 +171,12 @@ def synth_babble(text):
 
 def synth_character(text, info, args, tmp):
     """A supporting character's line: own edge voice (clone/own recordings are for the narrator only)."""
+    if args.tts == "kokoro":
+        v = info.get("kvoice") or (KOKORO_F if info["gender"] == "F" else KOKORO_M)[0]
+        if v == getattr(args, "voice", None):                      # never the same voice as the narrator
+            pool = KOKORO_F if info["gender"] == "F" else KOKORO_M
+            v = pool[(pool.index(v) + 1) % len(pool)] if v in pool else pool[0]
+        return synth_kokoro(text, v, 1.0, tmp)
     if args.tts in ("edge", "clone"):
         return synth_edge(text, info["voice"], "+0%", tmp, info["pitch"])
     if args.tts == "babble":
@@ -168,6 +201,8 @@ def synth(text, args, idx, tmp):
                     to_wav(cand, Path(tmp) / "x.wav")
                     return trim(read_wav(Path(tmp) / "x.wav"))
         raise SystemExit(f"Missing recording for beat {idx + 1} in {args.audio_dir} (expected {idx + 1:03d}.wav/.mp3)")
+    if args.tts == "kokoro":
+        return synth_kokoro(text, args.voice, getattr(args, "speed", 1.0), tmp)
     if args.tts == "edge":
         return synth_edge(text, args.voice, args.rate, tmp, getattr(args, "pitch", "+0Hz"))
     if args.tts == "clone":

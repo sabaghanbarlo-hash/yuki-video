@@ -24,6 +24,7 @@ Effects: knock door_slam door_open phone_ring alarm ding whoosh pop boing sad ta
 import re
 from dataclasses import dataclass, field
 from . import cast as C
+from . import audio as A
 from . import sfx as SFX
 from . import visuals as V
 from .script import split_sentences, group_sentences, pick_theme, THEME_WORDS
@@ -216,11 +217,15 @@ def plan_story(title, beats, decl):
     for n in decl:
         if n and n not in names:
             names.append(n)
-    cast, used = {}, set()
+    cast, used, used_v = {}, set(), set()
     for n in names:
         look, g, voice, pitch = C.make(n, decl.get(n), avoid=used)
         used.add(look.top)
-        cast[n] = dict(look=look, gender=g, voice=voice, pitch=pitch)
+        pool = A.KOKORO_F if g == "F" else A.KOKORO_M
+        k0 = C._h(n) % len(pool)
+        kv = next((pool[(k0 + j) % len(pool)] for j in range(len(pool)) if pool[(k0 + j) % len(pool)] not in used_v), pool[k0])
+        used_v.add(kv)
+        cast[n] = dict(look=look, gender=g, voice=voice, pitch=pitch, kvoice=kv)
     name_rx = {n: re.compile(r"(?<!\w)" + re.escape(n) + r"(?:'s|’s)?(?!\w)", re.I) for n in names}
     # scene themes
     themes, prev, run = {}, None, 0

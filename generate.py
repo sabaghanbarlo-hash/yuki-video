@@ -23,7 +23,7 @@ from yuki.render import render                       # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("script")
-    ap.add_argument("--tts", default="edge", choices=["edge", "clone", "babble", "none"])
+    ap.add_argument("--tts", default="kokoro", choices=["kokoro", "edge", "clone", "babble", "none"])
     ap.add_argument("--mode", default="explainer", choices=["explainer", "story"])
     ap.add_argument("--voice", default=None, help="edge voice name (default: the voice matched to yours in voice/match.json)")
     ap.add_argument("--pitch", default=None, help='edge pitch shift, e.g. "-8Hz"')
@@ -45,7 +45,11 @@ def main():
             match = json.loads(mp.read_text())
         except Exception:
             match = {}
-    args.voice = args.voice or match.get("voice") or "en-US-AriaNeural"
+    if args.tts == "kokoro":
+        args.voice = args.voice or match.get("kokoro_voice") or "af_bella"
+        args.speed = float(match.get("speed", 1.0))
+    else:
+        args.voice = args.voice or match.get("voice") or "en-US-AriaNeural"
     args.pitch = args.pitch or match.get("pitch") or "+0Hz"
     args.rate = args.rate or match.get("rate") or "-4%"
     args.music = not args.no_music
