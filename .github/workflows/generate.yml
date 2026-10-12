@@ -6,8 +6,11 @@ on:
       script:
         description: "Script file, e.g. stories/my-video.txt"
         default: "stories/sample.txt"
+      mode:
+        description: "explainer (self-improvement, explaining) or story (storytelling with a cast and sound effects)"
+        default: "explainer"
       voice:
-        description: "edge (instant free voice) or clone (your voice from voice/ref.*, slow)"
+        description: "edge (free built-in voice matched to yours) or clone (your voice from voice/ref.*, slow)"
         default: "edge"
       upload:
         description: "Upload to the Call of Yuki YouTube channel? (true/false)"
@@ -29,6 +32,7 @@ jobs:
     timeout-minutes: 350
     env:
       SCRIPT: ${{ github.event.inputs.script }}
+      MODE: ${{ github.event.inputs.mode }}
       VOICE: ${{ github.event.inputs.voice }}
       UPLOAD: ${{ github.event.inputs.upload }}
       PRIVACY: ${{ github.event.inputs.privacy }}
@@ -38,6 +42,7 @@ jobs:
       - name: Check inputs
         run: |
           [[ "$SCRIPT" =~ ^stories/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like stories/name.txt"; exit 1; }
+          [[ "$MODE" == "explainer" || "$MODE" == "story" ]] || { echo "::error::mode must be explainer or story"; exit 1; }
           [[ "$VOICE" == "edge" || "$VOICE" == "clone" ]] || { echo "::error::voice must be edge or clone"; exit 1; }
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
@@ -88,9 +93,9 @@ jobs:
           if [ "$VOICE" = "clone" ]; then
             src=$(ls voice/ref.* | head -1)
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
-            python -u generate.py "$SCRIPT" --tts clone --ref "$RUNNER_TEMP/ref.wav" --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --mode "$MODE" --tts clone --ref "$RUNNER_TEMP/ref.wav" --out "output/$name.mp4"
           else
-            python -u generate.py "$SCRIPT" --tts edge --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --mode "$MODE" --tts edge --out "output/$name.mp4"
           fi
           ls -la output
 
