@@ -198,7 +198,9 @@ def _scene_theme(text, prev, run, idx):
         if s > score:
             best, score = th, s
     best = best or pick_theme(text)
-    order = ["room_day", "city_day", "nature", "sunrise", "mind", "night_city"]
+    if best == "mind":                      # abstract grid background is for explainers, not stories
+        best = None
+    order = ["room_day", "city_day", "nature", "sunrise", "night_city"]
     if best is None or (best == prev and run >= 3):
         cands = [x for x in order if x != prev]
         best = cands[idx % len(cands)]
