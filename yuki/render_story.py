@@ -11,10 +11,11 @@ from .visuals import ACCENTS, wrap
 from . import world, sfx as SFX
 from .render import (W, H, FPS, PAUSE, TITLE_SECS, chip_img, caption_img, draw_element, write_srt)
 
-FLOOR_STAGE, FLOOR_CENTER, FLOOR_TITLE = 650, 604, 652
+FLOOR_STAGE, FLOOR_CENTER, FLOOR_TITLE = 566, 604, 652
+STAGE_SCALE = 0.62
 SCALE = 0.74
 NARR_SCALE, NARR_X, NARR_FLOOR = 0.46, 118, 676
-SLOTS = {1: [790], 2: [670, 940], 3: [570, 810, 1050]}
+SLOTS = {1: [800], 2: [640, 940], 3: [520, 790, 1060]}
 
 
 # ------------------------------------------------------------------ small drawings
@@ -220,7 +221,7 @@ def render_story(beats, cast, args, out_path, tmp):
         slots = SLOTS.get(len(stage), [])
         for name, sx in zip(stage, slots):
             if name not in chars:
-                chars[name] = Rig(-170 if sx < W / 2 else W + 170, FLOOR_STAGE, SCALE, cast[name]["look"])
+                chars[name] = Rig(-170 if sx < W / 2 else W + 170, FLOOR_STAGE, STAGE_SCALE, cast[name]["look"])
             chars[name].target_x = sx
         for name in list(chars):
             if name not in stage:
