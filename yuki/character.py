@@ -107,6 +107,20 @@ def _thick(d, a, b, w, fill):
 
 
 # ------------------------------------------------------------------ head
+
+def _bell(d, bottom, fill, long=False):
+    """Soft bell of hair: dome on top, sides that swell then tuck in, big round bottom corners (one smooth shape)."""
+    P = _P(SS)
+    inset = 8 if long else 14            # how far the bottom tucks in from the widest point
+    top_y = 150
+    L = []
+    # left side, from the widest point down to the rounded corner, then along the bottom
+    L += _bez((34, top_y), (30, top_y + 56), (30 + 0, bottom - 90), (34 + inset * .5, bottom - 52), 16)
+    L += _bez((34 + inset * .5, bottom - 52), (36 + inset, bottom - 14), (60 + inset, bottom + 2), (104, bottom + 2), 14)
+    R = [(400 - x, y) for x, y in L]
+    pts = L + R[::-1]
+    d.polygon([tuple(P(*p)) for p in pts], fill=fill)
+
 EYE = (56, 36, 46)
 LASH = (56, 36, 46)
 CLIP, CLIP_C = (214, 72, 78), (252, 232, 208)
@@ -125,11 +139,11 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
     if look.style == "boy":
         _round(d, (40, 150, 360, 250), 40, HAIR)
     else:
-        _round(d, (34, 150, 366, bottom), 62 if look.style != "long" else 40, HAIR)
+        _bell(d, bottom, HAIR, long=(look.style == "long"))
     if look.style == "bun":
         _ell(d, (152, -6, 248, 54), HAIR, None)
     # face
-    _ell(d, (68, 104, 332, 318), SKIN)
+    _ell(d, (82, 104, 318, 318), SKIN)
     # fringe: upper half of the dome + a row of soft scallops (boys: a flat swoosh)
     cx, cy, a, b = 200, 161, 166, 139
     top = [(cx + a * math.cos(math.radians(t)), cy + b * math.sin(math.radians(t))) for t in range(180, 361, 4)]
@@ -137,25 +151,25 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
     if look.style == "boy":
         d.polygon([tuple(P(*p)) for p in [(60, 150), (340, 150), (330, 176), (280, 192), (230, 172), (190, 186), (140, 176), (80, 190), (64, 176)]], fill=HAIR)
     else:
-        for x in (90, 134, 178, 222, 266, 310):
+        for x in (96, 138, 180, 220, 262, 304):
             _ell(d, (x - 26, cy - 26, x + 26, cy + 26), HAIR, None)
-        d.rectangle(P(64, 150, 336, 166), fill=HAIR)
+        d.rectangle(P(62, 150, 338, 166), fill=HAIR)
     if look.clip:
         _ell(d, (270, 44, 306, 80), look.clip, None)
         _ell(d, (281, 55, 295, 69), CLIP_C, None)
 
     # blush
-    for bx in (113, 287):
-        _ell(d, (bx - 26, 258, bx + 26, 286), look.blush, None)
+    for bx in (123, 277):
+        _ell(d, (bx - 25, 258, bx + 25, 285), look.blush, None)
 
     # eyes
-    for cx_ in (136, 264):
+    for cx_ in (143, 257):
         ex, ey = cx_ + gaze * 5, 226
         if eyes in ("open", "wide"):
-            ry = 37 if eyes == "wide" else 34
+            ry = 35 if eyes == "wide" else 32
             _ell(d, (ex - 24, ey - ry, ex + 24, ey + ry), EYE, None)
-            _ell(d, (ex - 16 + gaze * 2, ey - ry + 7, ex + 1 + gaze * 2, ey - ry + 25), (255, 255, 255), None)
-            _ell(d, (ex + 6, ey + 10, ex + 17, ey + 21), (255, 255, 255), None)
+            _ell(d, (ex - 16 + gaze * 2, ey - ry + 6, ex + 2 + gaze * 2, ey - ry + 25), (255, 255, 255), None)
+            _ell(d, (ex + 6, ey + 9, ex + 18, ey + 21), (255, 255, 255), None)
             if brow in ("angry", "sad"):
                 s_ = 1 if cx_ < 200 else -1          # +1 for the left eye
                 inner_low = brow == "angry"
