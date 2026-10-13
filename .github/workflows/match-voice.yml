@@ -27,7 +27,7 @@ jobs:
         run: |
           pip install numpy soundfile
           pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install "kokoro>=0.9.4"
+          pip install "transformers==4.46.3" "kokoro>=0.9.4"
       - name: Find the closest free voice
         run: |
           ref=$(ls voice/ref.* | head -1)

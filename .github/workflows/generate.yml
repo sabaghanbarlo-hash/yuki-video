@@ -69,7 +69,7 @@ jobs:
         if: ${{ github.event.inputs.voice == 'kokoro' }}
         run: |
           pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install "kokoro>=0.9.4" soundfile
+          pip install "transformers==4.46.3" "kokoro>=0.9.4" soundfile
 
       - name: Cache Kokoro model files
         if: ${{ github.event.inputs.voice == 'kokoro' }}
