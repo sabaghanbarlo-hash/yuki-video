@@ -3,7 +3,6 @@
 [cast: Mia = girl | Tom = boy | Mrs. Lee = woman]
 
 ## Monday morning
-
 So this is the story of the worst Monday of my life. I woke up late, grabbed my keys, and ran out the door.
 [sfx: door_slam] Mia: Okay, bye apartment! I am so late for work!
 Then I heard it. The lock clicked behind me, and my keys were still inside.
@@ -14,7 +13,6 @@ Tom (happy): Haha, did you lock yourself out again?
 Mia (angry): This is not funny, Tom!
 
 ## The rescue
-
 Suddenly the phone rang. It was the landlady, Mrs. Lee, and she had a spare key.
 Mrs. Lee: Do not worry, dear. I am on my way.
 Mia (sad): Thank you so much. I thought my whole day was ruined.
