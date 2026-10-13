@@ -1,0 +1,29 @@
+{
+  "kokoro_voice": "af_jessica",
+  "speed": 0.97,
+  "your_pitch_hz": 222,
+  "voice_pitch_hz": 211,
+  "distance": 0.838,
+  "runner_ups": [
+    {
+      "voice": "bf_lily",
+      "distance": 0.932,
+      "pitch_hz": 200
+    },
+    {
+      "voice": "af_bella",
+      "distance": 0.997,
+      "pitch_hz": 205
+    },
+    {
+      "voice": "af_sarah",
+      "distance": 1.002,
+      "pitch_hz": 200
+    },
+    {
+      "voice": "bf_alice",
+      "distance": 1.003,
+      "pitch_hz": 203
+    }
+  ]
+}
