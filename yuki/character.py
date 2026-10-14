@@ -38,16 +38,16 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Look:
     """Everything that makes one character different from another."""
-    hair: tuple = (70, 44, 42)
-    skin: tuple = (255, 225, 204)
-    top: tuple = (112, 168, 116)
-    top_d: tuple = (86, 140, 98)
-    sleeve: tuple = (100, 156, 106)
-    bottom: tuple = (72, 66, 90)
+    hair: tuple = (36, 34, 46)
+    skin: tuple = (255, 224, 200)
+    top: tuple = (108, 160, 108)
+    top_d: tuple = (84, 134, 90)
+    sleeve: tuple = (98, 150, 100)
+    bottom: tuple = (52, 48, 64)
     legs: tuple = (36, 34, 46)
     shoes: tuple = (34, 32, 42)
     scarf: tuple = (222, 64, 72)        # None = no scarf
-    clip: tuple = (214, 72, 78)         # None = no hair clip
+    clip: tuple = None                  # None = no hair clip
     skirt: bool = True
     style: str = "bob"                  # bob | long | boy | bun
     blush: tuple = (248, 172, 172)
@@ -111,7 +111,7 @@ def _thick(d, a, b, w, fill):
 def _bell(d, bottom, fill, long=False):
     """Soft bell of hair: dome on top, sides that swell then tuck in, big round bottom corners (one smooth shape)."""
     P = _P(SS)
-    inset = 8 if long else 14            # how far the bottom tucks in from the widest point
+    inset = 8 if long else 22            # how far the bottom tucks in from the widest point
     top_y = 150
     L = []
     # left side, from the widest point down to the rounded corner, then along the bottom
@@ -134,7 +134,7 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
     P = _P(SS)
     HAIR, SKIN = look.hair, look.skin
     # hair: dome + straight sides with rounded bottom corners
-    bottom = {"bob": 322, "long": 372, "boy": 250, "bun": 300}[look.style]
+    bottom = {"bob": 314, "long": 372, "boy": 250, "bun": 300}[look.style]
     _ell(d, (34, 22, 366, 300), HAIR)
     if look.style == "boy":
         _round(d, (40, 150, 360, 250), 40, HAIR)
@@ -154,6 +154,10 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
         for x in (96, 138, 180, 220, 262, 304):
             _ell(d, (x - 26, cy - 26, x + 26, cy + 26), HAIR, None)
         d.rectangle(P(62, 150, 338, 166), fill=HAIR)
+    if sum(look.hair) < 260 and look.style != "boy":
+        g = tuple(min(255, c + 30) for c in look.hair)
+        d.arc(P(70, 40, 250, 150), 200, 262, fill=g, width=9 * SS)
+        d.arc(P(86, 56, 236, 140), 205, 255, fill=g, width=5 * SS)
     if look.clip:
         _ell(d, (270, 44, 306, 80), look.clip, None)
         _ell(d, (281, 55, 295, 69), CLIP_C, None)
