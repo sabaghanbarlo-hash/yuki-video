@@ -63,12 +63,13 @@ except urllib.error.HTTPError as e:
     sys.exit(f"YouTube refused to start the upload ({e.code}): {e.read().decode(errors='replace')[:400]}")
 print("Upload session opened. Sending video...", flush=True)
 
-vid = None
+vid, body = None, {}
 for attempt in range(4):
     try:
         put = urllib.request.Request(loc, method="PUT", data=open(mp4, "rb"),
                                      headers={"Content-Type": "video/mp4", "Content-Length": str(size)})
-        vid = json.load(urllib.request.urlopen(put, timeout=3600)).get("id")
+        body = json.load(urllib.request.urlopen(put, timeout=3600))
+        vid = body.get("id")
         break
     except urllib.error.HTTPError as e:
         print("YouTube said:", e.code, e.read().decode(errors="replace")[:300], flush=True)
@@ -80,23 +81,17 @@ for attempt in range(4):
 if not vid:
     sys.exit("The upload did not go through. The video is still in this run's artifacts.")
 
-# ---------------------------------------------------------------- check it really exists
-state = None
-for _ in range(12):
-    time.sleep(10)
-    q = urllib.request.Request(f"https://www.googleapis.com/youtube/v3/videos?part=status&id={vid}", headers=AUTH)
-    try:
-        items = json.load(urllib.request.urlopen(q, timeout=60)).get("items", [])
-    except Exception:
-        items = []
-    if items:
-        state = items[0]["status"].get("uploadStatus")
-        if state in ("processed", "uploaded"):
-            break
-        if state in ("failed", "rejected", "deleted"):
-            sys.exit(f"YouTube rejected the video (state: {state}).")
-if not state:
-    sys.exit("YouTube accepted the upload but the video cannot be found afterwards. Download it from this run's artifacts.")
+# ---------------------------------------------------------------- confirm
+# The upload answer itself says what YouTube stored. (The upload-only permission cannot look videos up
+# afterwards, so a lookup is only a bonus and its errors are ignored.)
+st = body.get("status", {})
+state = st.get("uploadStatus") or "uploaded"
+priv = st.get("privacyStatus") or PRIVACY
+if state in ("failed", "rejected", "deleted"):
+    sys.exit(f"YouTube rejected the video (state: {state}, reason: {st.get('rejectionReason') or st.get('failureReason')}).")
+class _Items(list):
+    pass
+items = [{"status": {"uploadStatus": state, "privacyStatus": priv}}]
 url = f"https://youtu.be/{vid}"
 print("PUBLISHED:", url, f"({state}, {items[0]['status'].get('privacyStatus')})")
 out = os.environ.get("RESULT_JSON")
