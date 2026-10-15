@@ -96,8 +96,8 @@ def emote_img(kind, size=104):
 # ------------------------------------------------------------------ timeline + audio
 def _voice_for(b, cast, args, idx, tmp):
     if b.speaker and not args.audio_dir:
-        return synth_character(b.text, cast[b.speaker], args, tmp)
-    return synth(b.text, args, idx, tmp)
+        return synth_character(b.text, cast[b.speaker], args, tmp, emotion=b.emotion)
+    return synth(b.text, args, idx, tmp, emotion=(b.emotion if "face" in b.cues else None))
 
 
 def build_timeline(beats, cast, args, tmp):
@@ -113,8 +113,14 @@ def build_timeline(beats, cast, args, tmp):
             a = _voice_for(b, cast, args, k, tmp)
             k += 1
             speech = len(a) / SR
-            a = np.concatenate([a, silence(PAUSE if not b.speaker else 0.28)])
-            dur = speech + (PAUSE if not b.speaker else 0.28)
+            gap = PAUSE if not b.speaker else 0.28
+            tail = b.text.rstrip(" \"\u201d')")
+            if tail.endswith(("...", "\u2026")):
+                gap += 0.25                                  # trailing off: let it hang
+            elif tail.endswith("?") and len(tail.split()) <= 6:
+                gap += 0.2                                   # a setup line: leave room for the punchline
+            a = np.concatenate([a, silence(gap)])
+            dur = speech + gap
         parts.append(a)
         tl.append(dict(beat=b, start=t0, speech=speech, dur=dur))
         t0 += dur
@@ -145,7 +151,8 @@ def mix(tl, voice, total, music_on=True):
             out[i:i + len(x)] += x * gain
             n_fx += 1
     if music_on:
-        m = SFX.music(len(out) / SR, "story")
+        m = SFX.music(len(out) / SR + 0.5, "story")
+        m = np.pad(m, (0, max(0, len(out) - len(m))))
         env = np.convolve(np.abs(voice), np.ones(int(0.12 * SR)) / int(0.12 * SR), mode="same")
         env = np.concatenate([env, np.zeros(len(out) - len(env))])[: len(out)]
         duck = 1 - 0.75 * np.clip(env / 0.18, 0, 1)

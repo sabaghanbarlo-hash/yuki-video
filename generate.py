@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--voice", default=None, help="edge voice name (default: the voice matched to yours in voice/match.json)")
     ap.add_argument("--pitch", default=None, help='edge pitch shift, e.g. "-8Hz"')
     ap.add_argument("--rate", default=None)
+    ap.add_argument("--flat-voice", action="store_true", help="read everything in one flat tone (no storyteller delivery)")
     ap.add_argument("--no-music", action="store_true", help="story mode: no background music")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.wav or .mp3)")
     ap.add_argument("--exaggeration", type=float, default=0.5, help="clone: 0.3 calm ... 0.8 very expressive")
@@ -53,6 +54,7 @@ def main():
     args.pitch = args.pitch or match.get("pitch") or "+0Hz"
     args.rate = args.rate or match.get("rate") or "-4%"
     args.music = not args.no_music
+    args.expressive = not args.flat_voice
 
     if args.tts == "clone" and not args.ref:
         for cand in ("voice/ref.wav", "voice/ref.mp3", "voice/ref.m4a", "voice/ref.ogg", "voice/ref.flac"):

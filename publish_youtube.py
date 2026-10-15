@@ -31,12 +31,18 @@ AUTH = {"Authorization": "Bearer " + tok["access_token"]}
 
 # ---------------------------------------------------------------- metadata
 title, first = None, None
-for line in open(script, encoding="utf-8"):
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from yuki.clean import preprocess, clean_spoken
+    _text = preprocess(open(script, encoding="utf-8").read())
+except Exception:
+    _text, clean_spoken = open(script, encoding="utf-8").read(), (lambda t: t)
+for line in _text.splitlines():
     line = line.strip()
     if line.startswith("# ") and not title:
         title = line[2:].strip()
     elif first is None and line and not line.startswith("#"):
-        first = re.sub(r"^(\[[^\]]*\]\s*)+", "", line)
+        first = re.sub(r"^(\[[^\]]*\]\s*)+", "", clean_spoken(line))
 title = (title or os.path.splitext(os.path.basename(script))[0].replace("-", " ").title())[:100]
 side = os.path.splitext(script)[0] + ".desc"
 if os.path.exists(side) and open(side, encoding="utf-8").read().strip():

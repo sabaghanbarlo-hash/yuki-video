@@ -83,13 +83,14 @@ def parse_cues(s):
 def parse_script(path):
     """Returns (title, beats)."""
     title, heading, beats, scene = None, None, [], 0
-    text = Path(path).read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    from .clean import preprocess, clean_spoken
+    text = preprocess(Path(path).read_text(encoding="utf-8"))
     for para in re.split(r"\n\s*\n", text):
         lines = [l.rstrip() for l in para.strip().splitlines() if l.strip()]
         body = []
         for l in lines:
-            if l.startswith("## "):
-                heading = l[3:].strip()
+            if re.match(r"^#{2,4}(\s|$)", l):
+                heading = l.lstrip("#").strip() or None
             elif l.startswith("# "):
                 title = l[2:].strip()
             else:
@@ -110,7 +111,7 @@ def parse_script(path):
                     beats.append(Beat(rest, scene, heading, pending))
                     pending = {}
         else:
-            for b in group_sentences(split_sentences(" ".join(body))):
+            for b in group_sentences(split_sentences(clean_spoken(" ".join(body)))):
                 beats.append(Beat(b, scene, heading, {}))
         scene += 1
     return title, beats

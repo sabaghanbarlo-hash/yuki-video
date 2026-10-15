@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 W, H = 1280, 720
 GROUND = 588
 
-THEMES = ["room_day", "room_night", "night_city", "sunrise", "mind", "city_day", "nature"]
+THEMES = ["room_day", "room_night", "night_city", "sunrise", "mind", "city_day", "nature", "classroom", "exam_hall", "campus", "phone", "library"]
 
 
 def vgrad(w, h, stops):
@@ -292,19 +292,188 @@ def nature():
     return im
 
 
+# -------------------------------------------------------------- school / story themes
+def _desk(d, x, y, s=1.0, paper=False):
+    """A student desk with a chair, seen from the front. (x, y) = bottom centre."""
+    w, h = 150 * s, 62 * s
+    d.rounded_rectangle((x - w * .36, y - h * 1.55, x + w * .36, y - h * .6), 10 * s, fill=(112, 150, 190))       # chair back
+    d.rectangle((x - w * .30, y - h * .62, x + w * .30, y - h * .02), fill=(96, 132, 170))
+    d.rounded_rectangle((x - w / 2, y - h * 1.08, x + w / 2, y - h * .86), 8 * s, fill=(226, 184, 132))           # table top
+    d.rectangle((x - w * .44, y - h * .86, x - w * .40, y), fill=(150, 150, 164))
+    d.rectangle((x + w * .40, y - h * .86, x + w * .44, y), fill=(150, 150, 164))
+    if paper:
+        d.polygon([(x - 26 * s, y - h * 1.07), (x + 28 * s, y - h * 1.07), (x + 36 * s, y - h * 1.2), (x - 18 * s, y - h * 1.2)], fill=(255, 255, 255))
+        d.line((x - 12 * s, y - h * 1.14, x + 20 * s, y - h * 1.14), fill=(150, 160, 190), width=2)
+
+
+def classroom(exam=False):
+    rng = random.Random(71 if exam else 70)
+    wall = [(0, (206, 214, 228)), (1, (190, 200, 218))] if exam else [(0, (255, 246, 218)), (1, (246, 230, 196))]
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); im.alpha_composite(vgrad(W, GROUND, wall), (0, 0))
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, GROUND - 34, W, GROUND), fill=(255, 255, 255, 50))                      # skirting
+    # window (right)
+    wx0, wy0, wx1, wy1 = 1010, 96, 1230, 340
+    d.rounded_rectangle((wx0 - 12, wy0 - 12, wx1 + 12, wy1 + 12), 14, fill=(255, 255, 255))
+    sky = vgrad(wx1 - wx0, wy1 - wy0, [(0, (120, 190, 245) if not exam else (150, 170, 196)), (1, (214, 236, 252) if not exam else (200, 210, 224))])
+    cloud(ImageDraw.Draw(sky), 60, 90, 0.7)
+    im.alpha_composite(sky, (wx0, wy0)); d = ImageDraw.Draw(im)
+    d.line((wx0, (wy0 + wy1) // 2, wx1, (wy0 + wy1) // 2), fill=(255, 255, 255), width=8)
+    d.line(((wx0 + wx1) // 2, wy0, (wx0 + wx1) // 2, wy1), fill=(255, 255, 255), width=8)
+    # chalkboard
+    bx0, by0, bx1, by1 = 250, 84, 940, 346
+    d.rounded_rectangle((bx0 - 16, by0 - 16, bx1 + 16, by1 + 16), 12, fill=(170, 124, 90))
+    d.rounded_rectangle((bx0, by0, bx1, by1), 8, fill=(46, 94, 80) if not exam else (40, 70, 66))
+    d.rounded_rectangle((bx0 + 30, by1 + 16, bx1 - 30, by1 + 26), 5, fill=(150, 108, 80))
+    ch = (236, 240, 232, 210)
+    for i, y in enumerate(range(by0 + 40, by0 + 150, 34)):                                    # scribbled lines of "writing"
+        x = bx0 + 40
+        while x < bx0 + rng.randint(300, 560):
+            w = rng.randint(20, 70)
+            d.line((x, y + rng.randint(-3, 3), x + w, y + rng.randint(-3, 3)), fill=ch, width=3)
+            x += w + 16
+    d.ellipse((bx1 - 220, by0 + 40, bx1 - 120, by0 + 140), outline=ch, width=4)
+    d.line((bx1 - 110, by0 + 90, bx1 - 50, by0 + 60), fill=ch, width=4); d.polygon([(bx1 - 50, by0 + 60), (bx1 - 70, by0 + 58), (bx1 - 62, by0 + 76)], fill=ch)
+    d.rectangle((bx0 + 60, by1 - 40, bx0 + 100, by1 - 28), fill=(255, 255, 255, 230))         # chalk dust piece
+    # clock
+    cx, cy = 150, 150
+    d.ellipse((cx - 56, cy - 56, cx + 56, cy + 56), fill=(120, 96, 80)); d.ellipse((cx - 48, cy - 48, cx + 48, cy + 48), fill=(255, 255, 255))
+    for k in range(12):
+        a = math.radians(k * 30)
+        d.line((cx + math.sin(a) * 38, cy - math.cos(a) * 38, cx + math.sin(a) * 44, cy - math.cos(a) * 44), fill=(70, 60, 70), width=3)
+    h_ang, m_ang = (math.radians(240), math.radians(0)) if not exam else (math.radians(300), math.radians(60))
+    d.line((cx, cy, cx + math.sin(h_ang) * 24, cy - math.cos(h_ang) * 24), fill=(60, 50, 60), width=5)
+    d.line((cx, cy, cx + math.sin(m_ang) * 36, cy - math.cos(m_ang) * 36), fill=(60, 50, 60), width=3)
+    # notice board
+    d.rounded_rectangle((60, 260, 200, 380), 8, fill=(206, 160, 118))
+    for (px, py, pw, ph, col) in ((74, 274, 50, 40, (255, 255, 255)), (132, 278, 56, 36, (255, 226, 150)), (80, 326, 46, 40, (190, 226, 255)), (138, 322, 50, 46, (255, 190, 200))):
+        d.rectangle((px, py, px + pw, py + ph), fill=col); d.ellipse((px + pw / 2 - 3, py - 3, px + pw / 2 + 3, py + 3), fill=(220, 70, 70))
+    # floor
+    g = vgrad(W, H - GROUND, [(0, (206, 176, 140) if not exam else (170, 160, 150)), (1, (180, 148, 112) if not exam else (140, 130, 124))])
+    im.alpha_composite(g, (0, GROUND)); d = ImageDraw.Draw(im)
+    for y in range(GROUND + 26, H, 34):
+        d.line((0, y, W, y), fill=(150, 118, 90, 120), width=2)
+    # desks left and right (leave the middle for the characters)
+    for x, y, s in ((95, GROUND + 56, 1.15), (255, GROUND + 28, 0.95), (1185, GROUND + 56, 1.15), (1025, GROUND + 28, 0.95)):
+        _desk(d, x, y, s, paper=exam)
+    if exam:
+        im.alpha_composite(Image.new("RGBA", (W, H), (60, 80, 120, 34)))
+    return im
+
+
+def campus():
+    rng = random.Random(81)
+    im = vgrad(W, H, [(0, (118, 186, 246)), (1, (226, 242, 252))])
+    d = ImageDraw.Draw(im)
+    d.ellipse((1090, 60, 1170, 140), fill=(255, 232, 140)); im.alpha_composite(glow(W, H, 1130, 100, 200, (255, 236, 160), 0.45)); d = ImageDraw.Draw(im)
+    for x, y, s in ((140, 110, 1.0), (520, 60, 0.7), (860, 140, 0.9)):
+        cloud(d, x, y, s)
+    brick, brick_d, trim = (188, 104, 88), (160, 82, 72), (250, 244, 232)
+    # side wings
+    for x0, x1 in ((20, 330), (950, 1260)):
+        d.rectangle((x0, 330, x1, GROUND - 14), fill=brick); d.rectangle((x0 - 6, 322, x1 + 6, 336), fill=trim)
+        for wx in range(x0 + 26, x1 - 40, 70):
+            for wy in (356, 452):
+                d.rounded_rectangle((wx, wy, wx + 38, wy + 62), 14, fill=(255, 238, 200)); d.line((wx + 19, wy, wx + 19, wy + 62), fill=brick_d, width=3)
+    # main hall
+    d.rectangle((330, 218, 950, GROUND - 14), fill=brick)
+    d.polygon([(310, 222), (640, 118), (970, 222)], fill=trim)                                   # pediment
+    d.polygon([(350, 216), (640, 130), (930, 216)], fill=(236, 226, 210))
+    d.ellipse((602, 150, 678, 226), fill=(255, 255, 255), outline=(150, 120, 100), width=5)       # clock
+    d.line((640, 188, 640, 160), fill=(70, 60, 70), width=4); d.line((640, 188, 662, 196), fill=(70, 60, 70), width=4)
+    d.rectangle((318, 222, 962, 240), fill=trim)
+    for wx in range(366, 930, 78):
+        for wy in (262, 352):
+            d.rounded_rectangle((wx, wy, wx + 42, wy + 70), 16, fill=(255, 238, 200)); d.line((wx + 21, wy, wx + 21, wy + 70), fill=brick_d, width=3)
+    for cxp in (430, 535, 745, 850):                                                              # columns
+        d.rectangle((cxp - 15, 246, cxp + 15, GROUND - 16), fill=trim); d.rectangle((cxp - 21, 242, cxp + 21, 258), fill=(236, 226, 210))
+    d.rounded_rectangle((574, 380, 706, GROUND - 14), 30, fill=(110, 76, 66))                     # door
+    d.line((640, 392, 640, GROUND - 14), fill=(86, 58, 52), width=3)
+    for i in range(5):                                                                            # steps
+        y = GROUND - 14 + i * 7
+        d.rectangle((300 + i * 18, y, 980 - i * 18, y + 7), fill=(226 - i * 8, 220 - i * 8, 212 - i * 8))
+    # lawn + path
+    g = vgrad(W, H - GROUND, [(0, (116, 190, 114)), (1, (84, 156, 98))])
+    im.alpha_composite(g, (0, GROUND + 20)); d = ImageDraw.Draw(im)
+    d.rectangle((0, GROUND - 14, W, GROUND + 22), fill=(112, 186, 112))
+    d.polygon([(560, GROUND + 20), (720, GROUND + 20), (900, H), (380, H)], fill=(236, 220, 188))
+    for x in (60, 210, 1070, 1220):
+        tree(d, x, GROUND + 14, 220 if x in (60, 1220) else 170)
+    for x in (300, 980):
+        d.rectangle((x - 3, GROUND - 120, x + 3, GROUND + 14), fill=(70, 70, 90)); d.ellipse((x - 14, GROUND - 138, x + 14, GROUND - 110), fill=(255, 232, 160))
+    for _ in range(26):
+        x, y = rng.randint(0, W), rng.randint(GROUND + 30, H - 6)
+        if 380 < x < 900 and y > GROUND + 20 and abs(x - 640) < (y - GROUND) * 1.1:
+            continue
+        d.ellipse((x - 4, y - 4, x + 4, y + 4), fill=rng.choice([(255, 150, 170), (255, 226, 120), (255, 255, 255)]))
+    return im
+
+
+def phone():
+    """Group-chat world: floating chat bubbles on a night-blue gradient."""
+    from .fonts import font
+    rng = random.Random(91)
+    im = vgrad(W, H, [(0, (26, 24, 70)), (0.6, (60, 52, 120)), (1, (96, 70, 150))])
+    for _ in range(7):
+        im.alpha_composite(glow(W, H, rng.randint(0, W), rng.randint(0, 520), rng.randint(160, 280), rng.choice([(120, 110, 255), (255, 130, 200), (90, 200, 255)]), 0.22))
+    d = ImageDraw.Draw(im, "RGBA")
+    cols = [(255, 255, 255, 46), (120, 200, 255, 120), (255, 160, 210, 120), (170, 150, 255, 120), (130, 240, 200, 110)]
+    spots = [(70, 70), (360, 40), (700, 90), (1010, 52), (160, 250), (560, 210), (930, 230), (1130, 330), (60, 410), (330, 380), (800, 400), (1080, 470)]
+    for i, (x, y) in enumerate(spots):
+        w, h = rng.randint(150, 270), rng.randint(54, 84)
+        left = i % 2 == 0
+        c = cols[i % len(cols)]
+        d.rounded_rectangle((x, y, x + w, y + h), h // 2 - 4, fill=c)
+        tx = x + 22 if left else x + w - 22
+        d.polygon([(tx, y + h - 6), (tx + (-14 if left else 14), y + h + 14), (tx + (30 if left else -30), y + h - 4)], fill=c)
+        for k in range(3):
+            d.ellipse((x + w / 2 - 28 + k * 28, y + h / 2 - 6, x + w / 2 - 16 + k * 28, y + h / 2 + 6), fill=(255, 255, 255, 190))
+    for (x, y, n) in ((420, 130, "47"), (1180, 150, "9"), (140, 160, "3")):                       # unread badges
+        d.ellipse((x - 26, y - 26, x + 26, y + 26), fill=(255, 70, 90, 235))
+        f = font(26, "bold"); tw = d.textlength(n, font=f)
+        d.text((x - tw / 2, y - 18), n, font=f, fill=(255, 255, 255))
+    g = vgrad(W, H - GROUND, [(0, (120, 100, 190)), (1, (70, 60, 140))])
+    im.alpha_composite(g, (0, GROUND)); d = ImageDraw.Draw(im)
+    d.rectangle((0, GROUND, W, GROUND + 4), fill=(210, 200, 255))
+    return im
+
+
+def library():
+    rng = random.Random(101)
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); im.alpha_composite(vgrad(W, GROUND, [(0, (122, 86, 74)), (1, (96, 66, 62))]), (0, 0))
+    d = ImageDraw.Draw(im)
+    pal = [(226, 110, 120), (120, 170, 220), (244, 200, 100), (140, 200, 150), (180, 140, 220), (240, 150, 100), (90, 130, 170), (214, 214, 200)]
+    for sx0, sx1 in ((20, 600), (680, 1260)):
+        d.rectangle((sx0, 60, sx1, GROUND - 10), fill=(86, 58, 50))
+        for sy in range(150, GROUND - 10, 128):
+            x = sx0 + 10
+            while x < sx1 - 30:
+                bw, bh = rng.randint(18, 34), rng.randint(70, 112)
+                d.rounded_rectangle((x, sy - bh, x + bw, sy), 3, fill=rng.choice(pal)); x += bw + rng.randint(1, 5)
+            d.rectangle((sx0, sy, sx1, sy + 12), fill=(150, 108, 80))
+    d.rectangle((600, 60, 680, GROUND - 10), fill=(70, 46, 42))
+    im.alpha_composite(glow(W, H, 640, 150, 360, (255, 214, 150), 0.35)); d = ImageDraw.Draw(im)
+    floor_planks(im, GROUND, (196, 150, 112), (168, 122, 92), (150, 108, 80))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle((60, GROUND - 60, 360, GROUND - 38), 8, fill=(226, 184, 132)); d.rectangle((90, GROUND - 38, 100, GROUND + 30), fill=(150, 108, 80)); d.rectangle((320, GROUND - 38, 330, GROUND + 30), fill=(150, 108, 80))
+    d.polygon([(150, GROUND - 62), (186, GROUND - 100), (214, GROUND - 100), (212, GROUND - 62)], fill=(255, 255, 255)); d.polygon([(214, GROUND - 100), (250, GROUND - 82), (252, GROUND - 62), (212, GROUND - 62)], fill=(240, 236, 226))
+    return im
+
+
 _BUILD = {
     "room_day": lambda: room(False), "room_night": lambda: room(True), "night_city": night_city, "sunrise": sunrise,
     "mind": mind, "city_day": city_day, "nature": nature,
+    "classroom": lambda: classroom(False), "exam_hall": lambda: classroom(True), "campus": campus, "phone": phone, "library": library,
 }
 
 
-@functools.lru_cache(maxsize=16)
+@functools.lru_cache(maxsize=24)
 def theme_image(name):
     im = _BUILD.get(name, _BUILD["room_day"])()
     return im.convert("RGB")
 
 
-@functools.lru_cache(maxsize=16)
+@functools.lru_cache(maxsize=24)
 def _big(name, zoom=1.07):
     im = theme_image(name)
     return im.resize((int(W * zoom), int(H * zoom)), Image.BICUBIC)
