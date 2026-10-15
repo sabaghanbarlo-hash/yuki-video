@@ -9,6 +9,9 @@ on:
       mode:
         description: "explainer (self-improvement, explaining) or story (storytelling with a cast and sound effects)"
         default: "explainer"
+      energy:
+        description: "Storyteller delivery: 0.7 calm, 1.2 lively, 1.6 over the top"
+        default: "1.2"
       voice:
         description: "kokoro (free voice matched to yours), clone (your own voice, slow) or edge (Microsoft voices, often blocked)"
         default: "kokoro"
@@ -34,6 +37,7 @@ jobs:
       SCRIPT: ${{ github.event.inputs.script }}
       MODE: ${{ github.event.inputs.mode }}
       VOICE: ${{ github.event.inputs.voice }}
+      ENERGY: ${{ github.event.inputs.energy }}
       UPLOAD: ${{ github.event.inputs.upload }}
       PRIVACY: ${{ github.event.inputs.privacy }}
     steps:
@@ -44,6 +48,8 @@ jobs:
           [[ "$SCRIPT" =~ ^stories/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like stories/name.txt"; exit 1; }
           [[ "$MODE" == "explainer" || "$MODE" == "story" ]] || { echo "::error::mode must be explainer or story"; exit 1; }
           [[ "$VOICE" == "kokoro" || "$VOICE" == "clone" || "$VOICE" == "edge" ]] || { echo "::error::voice must be kokoro, clone or edge"; exit 1; }
+          [[ "$ENERGY" =~ ^[0-2](\.[0-9]+)?$ ]] || ENERGY=1.2
+          echo "ENERGY=$ENERGY" >> "$GITHUB_ENV"
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
           if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick the edge voice."; exit 1; }; fi
@@ -106,9 +112,9 @@ jobs:
           if [ "$VOICE" = "clone" ]; then
             src=$(ls voice/ref.* | head -1)
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
-            python -u generate.py "$SCRIPT" --mode "$MODE" --tts clone --ref "$RUNNER_TEMP/ref.wav" --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --mode "$MODE" --tts clone --ref "$RUNNER_TEMP/ref.wav" --energy "$ENERGY" --out "output/$name.mp4"
           else
-            python -u generate.py "$SCRIPT" --mode "$MODE" --tts "$VOICE" --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --mode "$MODE" --tts "$VOICE" --energy "$ENERGY" --out "output/$name.mp4"
           fi
           ls -la output
 

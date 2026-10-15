@@ -89,14 +89,14 @@ def _kokoro_raw(text, voice, speed):
     return trim(np.concatenate(chunks[:-1]))
 
 
-def synth_kokoro(text, voice, speed, tmp, emotion=None, expressive=True, pitch_bias=0.0):
+def synth_kokoro(text, voice, speed, tmp, emotion=None, expressive=True, pitch_bias=0.0, energy=1.0):
     """Speak `text` with a Kokoro voice (af_/am_ = American, bf_/bm_ = British). Returns mono float32 at 24 kHz.
     expressive=True reads it like a storyteller (see expressive.py) instead of one flat sentence-reader tone."""
     if not expressive:
         return _kokoro_raw(text, voice, speed)
     from . import expressive as E
     return E.speak(text, lambda t, sp: _kokoro_raw(t, voice, sp), mood=emotion or "neutral", base_speed=float(speed),
-                   pitch_bias=pitch_bias, trim=lambda x: trim(x, keep=0.05))
+                   pitch_bias=pitch_bias, trim=lambda x: trim(x, keep=0.05), energy=energy)
 
 
 # ---------------------------------------------------------------- cloned voice (Chatterbox, MIT licence, free, runs on CPU)
@@ -185,7 +185,7 @@ def synth_character(text, info, args, tmp, emotion=None):
         if v == getattr(args, "voice", None):                      # never the same voice as the narrator
             pool = KOKORO_F if info["gender"] == "F" else KOKORO_M
             v = pool[(pool.index(v) + 1) % len(pool)] if v in pool else pool[0]
-        return synth_kokoro(text, v, 1.0, tmp, emotion=emotion, expressive=getattr(args, "expressive", True))
+        return synth_kokoro(text, v, 1.0, tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
     if args.tts in ("edge", "clone"):
         return synth_edge(text, info["voice"], "+0%", tmp, info["pitch"])
     if args.tts == "babble":
@@ -211,7 +211,7 @@ def synth(text, args, idx, tmp, emotion=None):
                     return trim(read_wav(Path(tmp) / "x.wav"))
         raise SystemExit(f"Missing recording for beat {idx + 1} in {args.audio_dir} (expected {idx + 1:03d}.wav/.mp3)")
     if args.tts == "kokoro":
-        return synth_kokoro(text, args.voice, getattr(args, "speed", 1.0), tmp, emotion=emotion, expressive=getattr(args, "expressive", True))
+        return synth_kokoro(text, args.voice, getattr(args, "speed", 1.0), tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
     if args.tts == "edge":
         return synth_edge(text, args.voice, args.rate, tmp, getattr(args, "pitch", "+0Hz"))
     if args.tts == "clone":

@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--voice", default=None, help="edge voice name (default: the voice matched to yours in voice/match.json)")
     ap.add_argument("--pitch", default=None, help='edge pitch shift, e.g. "-8Hz"')
     ap.add_argument("--rate", default=None)
+    ap.add_argument("--energy", type=float, default=1.2, help="storyteller delivery strength: 0.7 calm, 1.2 lively (default), 1.6 over the top")
     ap.add_argument("--flat-voice", action="store_true", help="read everything in one flat tone (no storyteller delivery)")
     ap.add_argument("--no-music", action="store_true", help="story mode: no background music")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.wav or .mp3)")

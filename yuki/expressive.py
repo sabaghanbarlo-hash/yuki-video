@@ -48,7 +48,7 @@ def _spoken_form(text, shout):
     return re.sub(r"[A-Za-z']+", lambda m: m.group(0) if (m.group(0) in ACRONYMS or m.group(0) == "I" or m.group(0).startswith("I'")) else m.group(0).lower(), text)
 
 
-def plan(text, mood="neutral", base_speed=1.0):
+def plan(text, mood="neutral", base_speed=1.0, energy=1.0):
     """-> list of dicts: text, rate, st (semitones), db, pre, post.  One per sentence / quote."""
     segs, pos = [], 0
     chunks = []
@@ -89,10 +89,27 @@ def plan(text, mood="neutral", base_speed=1.0):
         if quoted:
             rate *= 1.04; st += 1.6 if i % 2 == 0 else -1.2; db += 0.5
         rate *= mrate; st += mst; db += mdb
-        st = max(-2.0, min(3.2, st))
         rate *= 1 + 0.025 * _jit(t, 1)
-        st += 0.35 * _jit(t, 2)
-        out.append(dict(text=_spoken_form(t, shout), rate=base_speed * rate, st=st, db=db, pre=pre, post=post))
+        st += 0.6 * _jit(t, 2)
+        if shout:
+            curve = (0.2, 1.0, 0.5)
+        elif end == "?":
+            curve = (0.0, -0.2, 2.6)
+        elif end == "!":
+            curve = (-0.2, 1.0, 0.2)
+        elif ell:
+            curve = (0.0, -0.5, -2.2)
+        elif len(words) <= 3:
+            curve = (0.0, 0.0, -0.6)
+        else:
+            curve = (0.6, 0.0, -1.0)                      # statements start up and settle down
+        e = max(0.0, energy)
+        rate = 1 + (rate - 1) * e
+        st = max(-2.5 * e, min(3.5 * e, st * e))
+        db = db * e
+        curve = tuple(c * e for c in curve)
+        pre, post = pre * (0.7 + 0.3 * e), post * (0.7 + 0.3 * e)
+        out.append(dict(text=_spoken_form(t, shout), rate=base_speed * rate, st=st, db=db, pre=pre, post=post, curve=curve))
         prev_words = len(words)
     LAST_WORDS[0] = prev_words
     if out:
@@ -108,13 +125,26 @@ def _shift(a, st):
     return np.interp(np.arange(0, len(a) - 1, r), np.arange(len(a)), a).astype(np.float32)
 
 
-def speak(text, tts, mood="neutral", base_speed=1.0, pitch_bias=0.0, trim=None):
+def _contour(a, st, curve):
+    """Move the pitch by `st` semitones on average and bend it along `curve` = semitone offsets at 0 %, 60 %, 100 % of the
+    sentence (variable-speed resampling). The length is kept by the caller through the voice speed."""
+    if len(a) < 16:
+        return a
+    n0 = max(16, int(len(a) / (2 ** (st / 12.0))))
+    x = np.linspace(0, 1, n0)
+    semis = st + np.interp(x, [0, 0.6, 1.0], curve)
+    pos = np.cumsum(2 ** (semis / 12.0))
+    pos = pos[pos < len(a) - 1]
+    return np.interp(pos, np.arange(len(a)), a).astype(np.float32)
+
+
+def speak(text, tts, mood="neutral", base_speed=1.0, pitch_bias=0.0, trim=None, energy=1.0):
     """tts(text, speed) -> float32 mono at 24 kHz.  Returns the whole performance."""
     pieces = []
-    for p in plan(text, mood, base_speed):
-        r = 2 ** ((p["st"] + pitch_bias) / 12.0)
+    for p in plan(text, mood, base_speed, energy):
+        r = 2 ** ((p["st"] + pitch_bias + 0.25 * sum(p["curve"]) / 3) / 12.0)
         a = tts(p["text"], float(np.clip(p["rate"] / r, 0.55, 1.6)))
-        a = _shift(a, p["st"] + pitch_bias)
+        a = _contour(a, p["st"] + pitch_bias, p["curve"])
         if trim:
             a = trim(a)
         a = a * (10 ** (p["db"] / 20.0))

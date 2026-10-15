@@ -53,10 +53,10 @@ def stats(x):
 
 
 res = {}
-for name, expr in (("flat", False), ("expressive", True)):
+for name, expr, en in (("flat", False, 1.0), ("lively", True, 1.2), ("wild", True, 1.7)):
     parts = []
     for ln in LINES:
-        parts.append(A.synth_kokoro(ln, voice, speed, "/tmp", expressive=expr))
+        parts.append(A.synth_kokoro(ln, voice, speed, "/tmp", expressive=expr, energy=en))
         parts.append(A.silence(0.38))
     x = np.concatenate(parts)
     x = x / max(1e-6, np.abs(x).max()) * 0.9
