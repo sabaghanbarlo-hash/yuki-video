@@ -118,12 +118,19 @@ jobs:
           fi
           ls -la output
 
+      - name: Make the thumbnail
+        continue-on-error: true
+        run: |
+          name=$(basename "${SCRIPT%.txt}")
+          python -u make_thumbnail.py "$SCRIPT" --mode "$MODE" --out "output/$name.jpg"
+
       - uses: actions/upload-artifact@v4
         with:
           name: video
           path: |
             output/*.mp4
             output/*.srt
+            output/*.jpg
 
       - name: Upload to YouTube
         if: ${{ github.event.inputs.upload == 'true' }}
@@ -134,7 +141,7 @@ jobs:
         run: |
           name=$(basename "${SCRIPT%.txt}")
           mkdir -p results
-          RESULT_JSON="results/$name.json" python -u publish_youtube.py "output/$name.mp4" "$SCRIPT"
+          THUMBNAIL="output/$name.jpg" RESULT_JSON="results/$name.json" python -u publish_youtube.py "output/$name.mp4" "$SCRIPT"
 
       - name: Save the result link
         if: ${{ github.event.inputs.upload == 'true' }}

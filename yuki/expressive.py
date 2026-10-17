@@ -105,7 +105,7 @@ def plan(text, mood="neutral", base_speed=1.0, energy=1.0):
             curve = (0.6, 0.0, -1.0)                      # statements start up and settle down
         e = max(0.0, energy)
         rate = 1 + (rate - 1) * e
-        st = max(-2.5 * e, min(3.5 * e, st * e))
+        st = max(-2.5 * e, min(3.5 * e, st * e)) * 0.35   # gentle: big resample pitch shifts make the voice robotic
         db = db * e
         curve = tuple(c * e for c in curve)
         pre, post = pre * (0.7 + 0.3 * e), post * (0.7 + 0.3 * e)

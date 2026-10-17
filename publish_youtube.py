@@ -100,7 +100,27 @@ class _Items(list):
 items = [{"status": {"uploadStatus": state, "privacyStatus": priv}}]
 url = f"https://youtu.be/{vid}"
 print("PUBLISHED:", url, f"({state}, {items[0]['status'].get('privacyStatus')})")
+
+# ---------------------------------------------------------------- thumbnail (best effort)
+thumb = os.environ.get("THUMBNAIL") or (sys.argv[3] if len(sys.argv) > 3 else None)
+thumb_state = "none"
+if thumb and os.path.exists(thumb):
+    ctype = "image/png" if thumb.lower().endswith(".png") else "image/jpeg"
+    for attempt in range(3):
+        try:
+            tr = urllib.request.Request(
+                f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId={vid}&uploadType=media",
+                data=open(thumb, "rb").read(), method="POST", headers={**AUTH, "Content-Type": ctype})
+            urllib.request.urlopen(tr, timeout=120).read()
+            thumb_state = "set"; print("Thumbnail set.", flush=True); break
+        except urllib.error.HTTPError as e:
+            thumb_state = f"failed {e.code}"
+            print("Thumbnail not set:", e.code, e.read().decode(errors="replace")[:300], flush=True)
+            if e.code < 500: break
+        except Exception as e:
+            thumb_state = f"failed {e}"; print("Thumbnail error:", e, flush=True)
+        time.sleep(5)
 out = os.environ.get("RESULT_JSON")
 if out:
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    json.dump({"id": vid, "url": url, "title": title, "privacy": items[0]["status"].get("privacyStatus", PRIVACY)}, open(out, "w"))
+    json.dump({"id": vid, "url": url, "title": title, "privacy": items[0]["status"].get("privacyStatus", PRIVACY), "thumbnail": thumb_state}, open(out, "w"))
