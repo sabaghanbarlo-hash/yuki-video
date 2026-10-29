@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""Make the YouTube thumbnail for one script.   python make_thumbnail.py stories/x.txt --out output/x.jpg"""
-import argparse, json, sys
+"""python make_thumbnail.py scripts/my-video.txt --out output/my-video.jpg   (frame from the video + big title)"""
+import argparse, sys
 from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from yuki.thumbnail import make  # noqa: E402
+from lab.thumbnail import make_thumbnail
 
 ap = argparse.ArgumentParser()
-ap.add_argument("script")
-ap.add_argument("--out", default=None)
-ap.add_argument("--mode", default="explainer")
-ap.add_argument("--seed", type=int, default=None)
+ap.add_argument("script"); ap.add_argument("--out", required=True); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--style", default=None)
+ap.add_argument("--mode", default=None)       # accepted and ignored (older workflow versions)
 a = ap.parse_args()
-out = a.out or str(Path("output") / (Path(a.script).stem + ".jpg"))
-print(json.dumps(make(a.script, out, a.mode, a.seed), ensure_ascii=False))
-print("thumbnail:", out)
+Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+make_thumbnail(Path(a.script).read_text(encoding="utf-8"), a.out, a.seed, a.style)
+print("wrote", a.out)

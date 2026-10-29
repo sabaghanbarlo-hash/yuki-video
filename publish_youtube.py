@@ -30,29 +30,24 @@ tok = post_form("https://oauth2.googleapis.com/token",
 AUTH = {"Authorization": "Bearer " + tok["access_token"]}
 
 # ---------------------------------------------------------------- metadata
-title, first = None, None
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-try:
-    from yuki.clean import preprocess, clean_spoken
-    _text = preprocess(open(script, encoding="utf-8").read())
-except Exception:
-    _text, clean_spoken = open(script, encoding="utf-8").read(), (lambda t: t)
-for line in _text.splitlines():
-    line = line.strip()
-    if line.startswith("# ") and not title:
-        title = line[2:].strip()
-    elif first is None and line and not line.startswith("#"):
-        first = re.sub(r"^(\[[^\]]*\]\s*)+", "", clean_spoken(line))
+from lab.script import parse
+from lab import knowledge as K
+_text = open(script, encoding="utf-8").read()
+title, _scenes = parse(_text)
+first = _scenes[0].sentences[0].text if _scenes and _scenes[0].sentences else ""
+topic = K.topic_of(_text) or "science"
 title = (title or os.path.splitext(os.path.basename(script))[0].replace("-", " ").title())[:100]
 side = os.path.splitext(script)[0] + ".desc"
 if os.path.exists(side) and open(side, encoding="utf-8").read().strip():
     desc = open(side, encoding="utf-8").read().strip()
 else:
-    desc = ((first or "")[:220].rstrip() + "…\n\n" if first else "") + \
-        "Call of Yuki explores the hidden patterns of the mind through simple stories and psychology.\n\n" \
-        "#selfimprovement #psychology #mindset"
+    desc = ((first or "")[:220].rstrip() + "\n\n" if first else "") + \
+        "Yuki Lab: animated science explainers, fascinating facts and what-if scenarios.\n\n#science #education #whatif"
+TAGS = {"space": "space", "earth": "earth science", "ocean": "ocean", "weather": "weather", "volcano": "volcano", "ice": "ice", "desert": "desert", "nature": "nature",
+        "body": "human body", "brain": "brain", "micro": "biology", "physics": "physics", "tech": "technology", "city": "cities", "history": "history", "disaster": "disasters"}
 meta = {"snippet": {"title": title, "description": desc[:4900], "categoryId": "27",
-                    "tags": ["self improvement", "psychology", "mindset", "habits", "Call of Yuki"]},
+                    "tags": ["science", "explained", "what if", "facts", "animation", TAGS.get(topic, "science"), "Yuki Lab"]},
         "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False}}
 size = os.path.getsize(mp4)
 print(f"Title: {title}\nPrivacy: {PRIVACY}\nFile: {mp4} ({size / 1e6:.1f} MB)", flush=True)

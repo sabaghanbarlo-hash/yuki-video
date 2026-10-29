@@ -4,19 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: "Script file, e.g. stories/my-video.txt"
-        default: "stories/sample.txt"
-      mode:
-        description: "explainer (self-improvement, explaining) or story (storytelling with a cast and sound effects)"
-        default: "explainer"
+        description: "Script file, e.g. scripts/my-video.txt"
+        default: "scripts/sample.txt"
+      style:
+        description: "Look: auto (the director picks per scene), flat, voxel or toon"
+        default: "auto"
+      seed:
+        description: "Change this number to get a different arrangement of the same script"
+        default: "0"
       energy:
-        description: "Storyteller delivery: 0.7 calm, 1.2 lively, 1.6 over the top"
+        description: "Narrator delivery: 0.7 calm, 1.2 lively, 1.6 over the top"
         default: "1.2"
       voice:
-        description: "kokoro (free voice matched to yours), clone (your own voice, slow) or edge (Microsoft voices, often blocked)"
+        description: "kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
         default: "kokoro"
+      audio:
+        description: "Optional: your own narration recording in the repo, e.g. audio/my-video.mp3 (replaces the voice above)"
+        default: ""
       upload:
-        description: "Upload to the Call of Yuki YouTube channel? (true/false)"
+        description: "Upload to the YouTube channel? (true/false)"
         default: "false"
       privacy:
         description: "YouTube visibility: private, unlisted or public"
@@ -35,7 +41,9 @@ jobs:
     timeout-minutes: 350
     env:
       SCRIPT: ${{ github.event.inputs.script }}
-      MODE: ${{ github.event.inputs.mode }}
+      STYLE: ${{ github.event.inputs.style }}
+      SEED: ${{ github.event.inputs.seed }}
+      AUDIO: ${{ github.event.inputs.audio }}
       VOICE: ${{ github.event.inputs.voice }}
       ENERGY: ${{ github.event.inputs.energy }}
       UPLOAD: ${{ github.event.inputs.upload }}
@@ -45,14 +53,20 @@ jobs:
 
       - name: Check inputs
         run: |
-          [[ "$SCRIPT" =~ ^stories/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like stories/name.txt"; exit 1; }
-          [[ "$MODE" == "explainer" || "$MODE" == "story" ]] || { echo "::error::mode must be explainer or story"; exit 1; }
+          [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
+          [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" ]] || { echo "::error::style must be auto, flat, voxel or toon"; exit 1; }
+          [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
           [[ "$VOICE" == "kokoro" || "$VOICE" == "clone" || "$VOICE" == "edge" ]] || { echo "::error::voice must be kokoro, clone or edge"; exit 1; }
           [[ "$ENERGY" =~ ^[0-2](\.[0-9]+)?$ ]] || ENERGY=1.2
           echo "ENERGY=$ENERGY" >> "$GITHUB_ENV"
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
-          if [ "$VOICE" = "clone" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick the edge voice."; exit 1; }; fi
+          if [ -n "$AUDIO" ]; then
+            [[ "$AUDIO" =~ ^audio/[A-Za-z0-9._-]+$ ]] || { echo "::error::audio must look like audio/name.mp3"; exit 1; }
+            test -f "$AUDIO" || { echo "::error::$AUDIO not found"; exit 1; }
+          fi
+          if [ "$VOICE" = "clone" ] && [ -z "$AUDIO" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick another voice."; exit 1; }; fi
 
       - name: System dependencies
         run: |
@@ -72,33 +86,33 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Install the Kokoro voice
-        if: ${{ github.event.inputs.voice == 'kokoro' }}
+        if: ${{ github.event.inputs.voice == 'kokoro' && github.event.inputs.audio == '' }}
         run: |
           pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
           pip install "transformers==4.46.3" "kokoro>=0.9.4" soundfile
 
       - name: Cache Kokoro model files
-        if: ${{ github.event.inputs.voice == 'kokoro' }}
+        if: ${{ github.event.inputs.voice == 'kokoro' && github.event.inputs.audio == '' }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
           key: hf-kokoro-v1
 
       - name: Install the voice-cloning model (clone only)
-        if: ${{ github.event.inputs.voice == 'clone' }}
+        if: ${{ github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
         run: |
           pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
           pip install chatterbox-tts
 
       - name: Cache voice model files
-        if: ${{ github.event.inputs.voice == 'clone' }}
+        if: ${{ github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
           key: hf-chatterbox-v1
 
       - name: Cache finished sentences (so a re-run does not start over)
-        if: ${{ github.event.inputs.voice == 'clone' }}
+        if: ${{ github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
         uses: actions/cache@v4
         with:
           path: .work
@@ -109,12 +123,15 @@ jobs:
         run: |
           mkdir -p output
           name=$(basename "${SCRIPT%.txt}")
-          if [ "$VOICE" = "clone" ]; then
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          if [ -n "$AUDIO" ]; then
+            python -u generate.py "$SCRIPT" --audio "$AUDIO" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+          elif [ "$VOICE" = "clone" ]; then
             src=$(ls voice/ref.* | head -1)
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
-            python -u generate.py "$SCRIPT" --mode "$MODE" --tts clone --ref "$RUNNER_TEMP/ref.wav" --energy "$ENERGY" --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --tts clone --ref "$RUNNER_TEMP/ref.wav" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           else
-            python -u generate.py "$SCRIPT" --mode "$MODE" --tts "$VOICE" --energy "$ENERGY" --out "output/$name.mp4"
+            python -u generate.py "$SCRIPT" --tts "$VOICE" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           fi
           ls -la output
 
@@ -122,7 +139,8 @@ jobs:
         continue-on-error: true
         run: |
           name=$(basename "${SCRIPT%.txt}")
-          python -u make_thumbnail.py "$SCRIPT" --mode "$MODE" --out "output/$name.jpg"
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          python -u make_thumbnail.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --out "output/$name.jpg"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -130,6 +148,7 @@ jobs:
           path: |
             output/*.mp4
             output/*.srt
+            output/*.plan.json
             output/*.jpg
 
       - name: Upload to YouTube

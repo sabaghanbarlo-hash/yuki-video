@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from yuki import audio as A
+from lab import voice as A
 
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "results")
 OUT.mkdir(parents=True, exist_ok=True)
