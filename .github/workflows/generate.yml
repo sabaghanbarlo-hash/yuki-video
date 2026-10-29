@@ -16,7 +16,7 @@ on:
         description: "Narrator delivery: 0.7 calm, 1.2 lively, 1.6 over the top"
         default: "1.2"
       voice:
-        description: "kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
+        description: "voicestudio (Voice Studio, high quality, speaks in your voice sample), kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
         default: "kokoro"
       audio:
         description: "Optional: your own narration recording in the repo, e.g. audio/my-video.mp3 (replaces the voice above)"
@@ -57,7 +57,7 @@ jobs:
           [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" ]] || { echo "::error::style must be auto, flat, voxel or toon"; exit 1; }
           [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
           echo "SEED=$SEED" >> "$GITHUB_ENV"
-          [[ "$VOICE" == "kokoro" || "$VOICE" == "clone" || "$VOICE" == "edge" ]] || { echo "::error::voice must be kokoro, clone or edge"; exit 1; }
+          [[ "$VOICE" == "voicestudio" || "$VOICE" == "kokoro" || "$VOICE" == "clone" || "$VOICE" == "edge" ]] || { echo "::error::voice must be voicestudio, kokoro, clone or edge"; exit 1; }
           [[ "$ENERGY" =~ ^[0-2](\.[0-9]+)?$ ]] || ENERGY=1.2
           echo "ENERGY=$ENERGY" >> "$GITHUB_ENV"
           [[ "$PRIVACY" == "private" || "$PRIVACY" == "unlisted" || "$PRIVACY" == "public" ]] || { echo "::error::bad privacy"; exit 1; }
@@ -98,6 +98,29 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-kokoro-v1
 
+      - name: Install Voice Studio (voicestudio only)
+        if: ${{ github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
+        run: |
+          pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5.10.0" accelerate pydub soundfile numpy
+          pip install --no-deps "git+https://github.com/debpalash/VoiceStudio.git"
+          python -c "import omnivoice; from omnivoice import OmniVoice; print('Voice Studio engine ok')"
+
+      - name: Cache Voice Studio model files
+        if: ${{ github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-voicestudio-v1
+
+      - name: Cache finished sentences (voicestudio)
+        if: ${{ github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
+        uses: actions/cache@v4
+        with:
+          path: .work
+          key: vs-sentences-${{ github.run_id }}
+          restore-keys: vs-sentences-
+
       - name: Install the voice-cloning model (clone only)
         if: ${{ github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
         run: |
@@ -126,6 +149,9 @@ jobs:
           STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
           if [ -n "$AUDIO" ]; then
             python -u generate.py "$SCRIPT" --audio "$AUDIO" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+          elif [ "$VOICE" = "voicestudio" ]; then
+            REF=""; if ls voice/ref.* >/dev/null 2>&1; then src=$(ls voice/ref.* | grep -v '\.txt$' | head -1); ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"; REF="--ref $RUNNER_TEMP/ref.wav"; fi
+            python -u generate.py "$SCRIPT" --tts voicestudio $REF --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           elif [ "$VOICE" = "clone" ]; then
             src=$(ls voice/ref.* | head -1)
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
@@ -147,7 +173,6 @@ jobs:
           name: video
           path: |
             output/*.mp4
-            output/*.srt
             output/*.plan.json
             output/*.jpg
 

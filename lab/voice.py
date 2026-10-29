@@ -145,6 +145,62 @@ def synth_clone(text, ref, tmp, exaggeration=0.5, cfg=0.5):
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
 
+# ---------------------------------------------------------------- Voice Studio (OmniVoice engine, free, runs on CPU)
+_VS = {}
+VS_MODEL = "k2-fsa/OmniVoice"
+
+
+def _voicestudio(ref):
+    if "m" not in _VS:
+        import torch
+        from omnivoice import OmniVoice
+        print("  loading the Voice Studio model (first time downloads it)...", flush=True)
+        _VS["m"] = OmniVoice.from_pretrained(VS_MODEL, device_map="cpu", dtype=torch.float32)
+    if ref and _VS.get("ref") != str(ref):
+        txt = Path(str(ref) + ".txt")
+        if not txt.exists():
+            txt = Path(ref).with_suffix(".txt")
+        rt = txt.read_text().strip() if txt.exists() else None
+        if rt is None:
+            _VS["m"].load_asr_model("openai/whisper-small")      # no transcript next to the sample: read it ourselves
+        wav = Path("/tmp") / f"vs_ref_{_file_md5(ref)[:8]}.wav"
+        if not wav.exists():
+            to_wav(ref, wav)
+        _VS["prompt"] = _VS["m"].create_voice_clone_prompt(ref_audio=str(wav), ref_text=rt)
+        _VS["ref"] = str(ref)
+    return _VS["m"]
+
+
+def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, instruct="female, young adult, warm, expressive"):
+    """Speak `text` with Voice Studio's OmniVoice model: in the voice of `ref` when there is a sample, otherwise a
+    designed voice. Sentence by sentence; finished sentences are cached on disk."""
+    cache = Path(tmp) / "vs_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    rid = _file_md5(ref)[:10] if ref and Path(ref).exists() else "design"
+    ref = ref if rid != "design" else None
+    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
+    pieces = []
+    for sent in sents:
+        key = hashlib.md5(f"{rid}|{speed}|{steps}|{sent}".encode()).hexdigest()[:16]
+        f = cache / f"{key}.wav"
+        if not f.exists():
+            import torchaudio
+            m = _voicestudio(ref)
+            kw = dict(text=sent, language="en", num_step=steps, speed=speed)
+            if ref:
+                kw["voice_clone_prompt"] = _VS["prompt"]
+            else:
+                kw["instruct"] = instruct
+            wav = m.generate(**kw)[0]
+            raw = cache / f"{key}_raw.wav"
+            torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
+            to_wav(raw, f)
+            raw.unlink(missing_ok=True)
+        pieces.append(trim(read_wav(f), keep=0.04))
+        pieces.append(silence(0.16))
+    return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
+
+
 _FORMANTS = {"a": (730, 1090), "e": (530, 1840), "i": (270, 2290), "o": (570, 840), "u": (300, 870)}
 
 
@@ -216,6 +272,8 @@ def synth(text, args, idx, tmp, emotion=None):
         return synth_edge(text, args.voice, args.rate, tmp, getattr(args, "pitch", "+0Hz"))
     if args.tts == "clone":
         return synth_clone(text, getattr(args, "ref", None), tmp, getattr(args, "exaggeration", 0.5), getattr(args, "cfg", 0.5))
+    if args.tts == "voicestudio":
+        return synth_voicestudio(text, getattr(args, "ref", None), tmp, getattr(args, "speed", 1.0), getattr(args, "steps", 16))
     if args.tts == "babble":
         return synth_babble(text)
     return silent_words(text)

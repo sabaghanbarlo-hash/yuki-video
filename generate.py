@@ -22,7 +22,7 @@ sys.path.insert(0, str(HERE))
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("script")
-    ap.add_argument("--tts", default="kokoro", choices=["kokoro", "edge", "clone", "babble", "none"])
+    ap.add_argument("--tts", default="kokoro", choices=["kokoro", "voicestudio", "edge", "clone", "babble", "none"])
     ap.add_argument("--voice", default=None, help="voice name (default: the voice matched to yours in voice/match.json)")
     ap.add_argument("--pitch", default=None)
     ap.add_argument("--rate", default=None)
@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--flat-voice", action="store_true")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.*)")
     ap.add_argument("--exaggeration", type=float, default=0.5)
+    ap.add_argument("--steps", type=int, default=16, help="Voice Studio quality steps (more = better, slower)")
     ap.add_argument("--cfg", type=float, default=0.5)
     ap.add_argument("--audio", default=None, help="one recording of the whole narration (mp3/wav/m4a); used instead of a synthetic voice")
     ap.add_argument("--audio-dir", default=None, help="folder with 001.wav, 002.wav ... one recording per sentence")
@@ -57,7 +58,7 @@ def main():
     args.pitch = args.pitch or match.get("pitch") or "+0Hz"
     args.rate = args.rate or match.get("rate") or "-4%"
     args.expressive = not args.flat_voice
-    if args.tts == "clone" and not args.ref:
+    if args.tts in ("clone", "voicestudio") and not args.ref:
         for ext in ("wav", "mp3", "m4a", "ogg", "flac"):
             if (HERE / "voice" / f"ref.{ext}").exists():
                 args.ref = str(HERE / "voice" / f"ref.{ext}")
@@ -83,7 +84,7 @@ def main():
         return
     out.parent.mkdir(parents=True, exist_ok=True)
     total, plan = P.make(text, args, out, tmp)
-    print(f"done: {out}  ({total:.1f}s)  subtitles: {out.with_suffix('.srt')}")
+    print(f"done: {out}  ({total:.1f}s)")
 
 
 if __name__ == "__main__":

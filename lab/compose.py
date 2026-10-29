@@ -140,16 +140,4 @@ class Compositor:
         if sc["heading"] and lt < 2.8:
             a = clamp(lt / 0.3) * clamp((2.8 - lt) / 0.4)
             O.paste(im, O.chip_img(sc["heading"], O.ACCENTS[sc["idx"] % len(O.ACCENTS)], 26), 34, 28 + (1 - ease_out(clamp(lt / 0.3))) * -20, a)
-        # caption of the sentence being spoken
-        for s in sc["sentences"]:
-            if s["t0"] - 0.05 <= t <= s["t1"] + 0.25:
-                for c in s.get("caps", []):
-                    if c["t0"] - 0.05 <= t < c["t1"] + (0.25 if c is s["caps"][-1] else 0.0):
-                        hi = -1
-                        for wi, wt in enumerate(c["wt"]):
-                            if t >= wt:
-                                hi = wi
-                        img = O.caption_img(tuple(c["words"]), hi)
-                        O.paste(im, img, (W - img.width) // 2, H - img.height - 30)
-                        break
-                break
+        # no burned-in captions: the video is delivered without subtitles

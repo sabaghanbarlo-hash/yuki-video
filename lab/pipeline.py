@@ -340,7 +340,6 @@ def make(text, args, out_path, tmp):
     durs = [len(a) / SR for a in sent_audio]
     total = timeline(plan, durs)
     caption_plan(plan)
-    write_srt(plan, Path(out_path).with_suffix(".srt"))
     audio, voice_t = mix(plan, sent_audio, total)
     n_frames = int(math.ceil(total * FPS))
     lvl, amp = mouth_levels(voice_t, n_frames)
