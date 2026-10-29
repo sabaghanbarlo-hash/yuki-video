@@ -51,6 +51,7 @@ Cue keys: `style` (flat/voxel/toon), `env` (space, ocean, underwater, volcano, c
 
 ## Voice
 
+* `voicestudio`: [Voice Studio](https://github.com/debpalash/VoiceStudio) (OmniVoice engine, free, runs on the CPU). It speaks in the voice of `voice/ref.*` (put the exact words said in `voice/ref.txt` for best results, otherwise Whisper reads them). Higher quality than Kokoro but slow: about 4 minutes per sentence on a GitHub runner, so a 40-sentence script needs roughly 3 hours. Note: no subtitles are burned into the video.
 * `kokoro` (default): free open-source voice picked to be closest to your sample (`voice/match.json`, re-run *Match my voice* after replacing `voice/ref.*`),
   with the storyteller delivery layer (`lab/expressive.py`).
 * `clone`: your own voice via Chatterbox (`voice/ref.*`), slow on CPU.
