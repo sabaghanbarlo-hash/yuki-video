@@ -1,0 +1,62 @@
+name: Preview scenes
+
+# Fast (about a minute, no narration): works out the scenes of a script and renders one still of each, so you can see what
+# will be made before spending a full render. The result is saved in previews/<name>/ (plan.json + scene-NN.jpg).
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Script file, e.g. scripts/my-video.txt"
+        default: "scripts/sample.txt"
+      style:
+        description: "auto, flat, voxel or toon"
+        default: "auto"
+      seed:
+        description: "Arrangement number"
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: preview
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCRIPT: ${{ github.event.inputs.script }}
+      STYLE: ${{ github.event.inputs.style }}
+      SEED: ${{ github.event.inputs.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check inputs
+        run: |
+          [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
+          [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" ]] || { echo "::error::bad style"; exit 1; }
+          [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Render the scene stills
+        run: |
+          name=$(basename "${SCRIPT%.txt}")
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          rm -rf "previews/$name"
+          python -u generate.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --preview "previews/$name"
+      - name: Save the previews
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add previews
+          git commit -m "Scene previews [skip ci]" || echo "nothing to commit"
+          git pull --rebase || true
+          git push || true
