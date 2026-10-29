@@ -1,0 +1,238 @@
+{
+ "title": "What If the Moon Vanished Tomorrow?",
+ "scenes": [
+  {
+   "idx": 0,
+   "kind": "title",
+   "heading": "",
+   "style": "flat",
+   "env": "orbit",
+   "mood": "wonder",
+   "topic": "space",
+   "transition": "fade",
+   "t0": 0.0,
+   "t1": 3.6,
+   "text": "What If the Moon Vanished Tomorrow?",
+   "shots": [
+    {
+     "template": "title",
+     "t0": 0.0,
+     "t1": 3.6,
+     "things": [
+      "moon"
+     ]
+    }
+   ],
+   "image": "scene-00.jpg"
+  },
+  {
+   "idx": 1,
+   "kind": "body",
+   "heading": "The silent sky",
+   "style": "flat",
+   "env": "solar",
+   "mood": "danger",
+   "topic": "space",
+   "transition": "flash",
+   "t0": 3.6,
+   "t1": 22.07,
+   "text": "What if the Moon simply disappeared tomorrow? Not exploded, not moved. Just gone. For the first night, you would barely notice. The sky would be darker, and the stars would shine brighter than you have ever seen them.",
+   "shots": [
+    {
+     "template": "pair",
+     "t0": 3.6,
+     "t1": 10.83,
+     "things": [
+      "moon",
+      "explosion"
+     ]
+    },
+    {
+     "template": "process",
+     "t0": 10.83,
+     "t1": 22.07,
+     "things": [
+      "person",
+      "cloud"
+     ]
+    }
+   ],
+   "image": "scene-01.jpg"
+  },
+  {
+   "idx": 2,
+   "kind": "body",
+   "heading": "The oceans lose their rhythm",
+   "style": "voxel",
+   "env": "underwater",
+   "mood": "shock",
+   "topic": "ocean",
+   "transition": "wipe_r",
+   "t0": 22.07,
+   "t1": 44.51,
+   "text": "Then the oceans would start to change. The Moon pulls on our seas, and that pull creates the tides. Without it, the tides would shrink to about one third of their size. Fish, coral reefs and millions of coastal animals depend on that rhythm. Suddenly, it would be gone.",
+   "shots": [
+    {
+     "template": "crane",
+     "t0": 22.07,
+     "t1": 30.8,
+     "things": [
+      "human",
+      "wave",
+      "moon"
+     ]
+    },
+    {
+     "template": "top",
+     "t0": 30.8,
+     "t1": 44.51,
+     "things": [
+      "human",
+      "wave",
+      "fish"
+     ]
+    }
+   ],
+   "image": "scene-02.jpg"
+  },
+  {
+   "idx": 3,
+   "kind": "body",
+   "heading": "Earth starts to wobble",
+   "style": "flat",
+   "env": "orbit",
+   "mood": "neutral",
+   "topic": "space",
+   "transition": "iris",
+   "t0": 44.51,
+   "t1": 67.18,
+   "text": "Here is the scary part. The Moon keeps the Earth tilted at a steady angle of 23 degrees. Without it, our planet could wobble like a spinning top. Over millions of years, summer in your city could turn into a frozen winter, and the poles could end up facing the Sun.",
+   "shots": [
+    {
+     "template": "stat",
+     "t0": 44.51,
+     "t1": 52.86,
+     "things": [
+      "moon"
+     ]
+    },
+    {
+     "template": "pair",
+     "t0": 52.86,
+     "t1": 57.26,
+     "things": [
+      "earth",
+      "planet"
+     ]
+    },
+    {
+     "template": "process",
+     "t0": 57.26,
+     "t1": 67.18,
+     "things": [
+      "skyline",
+      "snowflake",
+      "sun"
+     ]
+    }
+   ],
+   "image": "scene-03.jpg"
+  },
+  {
+   "idx": 4,
+   "kind": "body",
+   "heading": "A day gets shorter",
+   "style": "toon",
+   "env": "stage",
+   "mood": "wonder",
+   "topic": "space",
+   "transition": "zoom",
+   "t0": 67.18,
+   "t1": 81.98,
+   "text": "Days would also get shorter, slowly. Right now the Moon drags on our spinning planet, and a day is 24 hours long. Billions of years ago, a day lasted only 6 hours!",
+   "shots": [
+    {
+     "template": "solo",
+     "t0": 67.18,
+     "t1": 77.07,
+     "things": [
+      "char",
+      "moon",
+      "planet"
+     ]
+    },
+    {
+     "template": "pointing",
+     "t0": 77.07,
+     "t1": 81.98,
+     "things": [
+      "char",
+      "clock"
+     ]
+    }
+   ],
+   "image": "scene-04.jpg"
+  },
+  {
+   "idx": 5,
+   "kind": "body",
+   "heading": "So can we live without it?",
+   "style": "voxel",
+   "env": "city",
+   "mood": "calm",
+   "topic": "city",
+   "transition": "fade",
+   "t0": 81.98,
+   "t1": 103.11,
+   "text": "Life would survive, but the world would be very different. People would walk at night under a dark sky, and the sea would be calm and strange. The Moon is not just a light in the sky. It is the quiet engine that keeps our world steady.",
+   "shots": [
+    {
+     "template": "orbit_low",
+     "t0": 81.98,
+     "t1": 93.8,
+     "things": [
+      "human",
+      "critter",
+      "crowd",
+      "cloud",
+      "wave"
+     ]
+    },
+    {
+     "template": "crane",
+     "t0": 93.8,
+     "t1": 103.11,
+     "things": [
+      "human",
+      "critter",
+      "moon"
+     ]
+    }
+   ],
+   "image": "scene-05.jpg"
+  },
+  {
+   "idx": 6,
+   "kind": "outro",
+   "heading": "",
+   "style": "flat",
+   "env": "day_sky",
+   "mood": "wonder",
+   "topic": "city",
+   "transition": "fade",
+   "t0": 103.11,
+   "t1": 106.31,
+   "text": "Thanks for watching",
+   "shots": [
+    {
+     "template": "outro",
+     "t0": 103.11,
+     "t1": 106.31,
+     "things": []
+    }
+   ],
+   "image": "scene-06.jpg"
+  }
+ ],
+ "total": 106.3
+}
