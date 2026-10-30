@@ -204,6 +204,7 @@ def parse(text):
     scenes = [sc for sc in scenes if sc.sentences]
     if not explicit_any:
         scenes = auto_split(scenes)
+    scenes = split_on_place(scenes)
     return title, scenes
 
 
@@ -242,3 +243,31 @@ def auto_split(scenes):
 def estimate_seconds(sentences):
     n = sum(len(s.text.split()) for s in sentences)
     return n / WPS + 0.25 * len(sentences)
+
+
+def split_on_place(scenes):
+    """A scene whose narration moves to a different place ('in the desert' ... 'under the sea') is cut there, so each
+    scene is drawn where it happens. Scenes with an explicit [env: ...] cue are left alone."""
+    from dataclasses import replace
+    from . import knowledge as K
+    out = []
+    for sc in scenes:
+        if sc.cues.get("env") or sc.cues.get("environment") or sc.cues.get("place"):
+            out.append(sc); continue
+        groups, cur, words, last = [], [], 0, None
+        for s in sc.sentences:
+            alias, score = K.place_of(s.text)
+            alias = alias if score >= 3 else None
+            if cur and alias and last and alias != last and words >= 14:
+                groups.append(cur); cur, words = [], 0
+            cur.append(s); words += len(s.text.split())
+            if alias:
+                last = alias
+        if cur:
+            groups.append(cur)
+        if len(groups) > 1 and sum(len(x.text.split()) for x in groups[-1]) < 8:
+            groups[-2] += groups.pop()
+        for gi, g in enumerate(groups):
+            keep = sc.cues if gi == 0 else {k: v for k, v in sc.cues.items() if k in ("style", "look", "palette", "mood")}
+            out.append(replace(sc, sentences=g, heading=sc.heading if gi == 0 else "", cues=dict(keep)))
+    return out

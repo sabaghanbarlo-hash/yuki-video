@@ -149,10 +149,14 @@ def choose_style(rng, text, topic, cues, prev_styles, f):
     return ("flat", "voxel", "toon")[max(range(3), key=lambda i: w[i])]
 
 
-def choose_env(rng, topic, style, cues, prev_env):
+def choose_env(rng, topic, style, cues, prev_env, place=None):
     envcue = cues.get("env") or cues.get("environment") or cues.get("place")
     if envcue:
         e = resolve_env(envcue, style)
+        if e:
+            return e
+    if place:                                   # the place the words are actually about wins over a random pick
+        e = resolve_env(place, style)
         if e:
             return e
     opts = list(K.ENVS.get(topic or "generic", K.ENVS["generic"]).get(style) or K.ENVS["generic"][style])
@@ -220,8 +224,11 @@ def build_scene(idx, raw: RawScene, prev, rng, force_style=None):
         cues.setdefault("style", force_style)
     style = choose_style(rng, text, topic, cues, prev["_styles"] if prev else [], f_all)
     envmem = prev["_env"] if prev else {}
-    env = choose_env(rng, topic, style, cues, envmem)
-    pal = choose_pal(rng, topic, cues, env)
+    place, pscore = K.place_of(text)
+    if pscore < 2:                                                  # no place named here: stay where the previous scene was
+        place = prev.get("_place") if prev and (topic == prev["topic"] or topic in (None, "generic")) else None
+    env = choose_env(rng, topic, style, cues, envmem, place)
+    pal = choose_pal(rng, K.PLACE_TOPIC.get(place, topic) if place else topic, cues, env)
     mood = cues.get("mood") if cues.get("mood") in K.MOODS or cues.get("mood") == "neutral" else f_all["mood"]
     tod = choose_tod(rng, env, topic, mood, cues) if style == "voxel" else None
     seed = int(cues["seed"]) if cues.get("seed", "").isdigit() else rng.randrange(1, 9999)
@@ -231,6 +238,7 @@ def build_scene(idx, raw: RawScene, prev, rng, force_style=None):
     scene = dict(idx=idx, heading=raw.heading, kind="body", style=style, env=env, pal=pal, tod=tod, seed=seed, topic=topic, mood=mood, cues=cues,
                  sentences=sents, text=text)
     scene["_styles"] = (prev["_styles"] if prev else []) + [style]
+    scene["_place"] = place
     scene["_env"] = dict(envmem); scene["_env"][style] = env
     # transition into this scene
     tr = cues.get("transition")

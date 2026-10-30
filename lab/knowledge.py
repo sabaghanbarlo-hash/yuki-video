@@ -257,3 +257,70 @@ SFX_RULES = [
     (R(r"\b(footsteps?|walk\w*|step\w*|marching|hike\w*)\b"), "footsteps"),
     (R(r"\b(alarm|warning|danger\w*|emergency|siren)\b"), "alarm"),
 ]
+
+
+# ------------------------------------------------------------------ WHERE a piece of narration takes place
+# alias -> (regex, weak). Aliases are the keys of director.ENV_ALIASES, so every style resolves them to a real environment.
+# "weak" words (data, room, sky ...) only count when written as a place ("in the room", "across the sky").
+_PLACE_DEFS = {
+    "space":        (r"outer space|deep space|space|cosmos|universe|interstellar|zero gravity|spacecraft|spaceship", False),
+    "galaxy":       (r"galax\w+|milky way|nebula\w*", False),
+    "solar_system": (r"solar system|planets?", False),
+    "orbit":        (r"orbit\w*|the moon|lunar|satellites?|mars", False),
+    "underwater":   (r"underwater|under the (sea|ocean|water)|beneath the (waves|surface of the (sea|ocean))|sea ?floor|ocean floor|coral|reefs?|submarine|scuba|dive[rs]?|diving", False),
+    "deep_sea":     (r"deep sea|abyss\w*|trench\w*|bathyal|hadal|midnight zone", False),
+    "ocean":        (r"ocean\w*|the sea|seas|waves?|tsunami\w*|shore|coast\w*|harbou?r|ship|sailing|sailors?", False),
+    "beach":        (r"beach\w*|seaside|sand castle", False),
+    "volcano":      (r"volcan\w+|lava|magma|erupt\w*|crater", False),
+    "ice":          (r"glaciers?|arctic|antarctic\w*|polar|icebergs?|tundra|permafrost|snow\w*|frozen|ice sheets?|ice caps?", False),
+    "desert":       (r"deserts?|sahara|dunes?|oasis|arid|sand", False),
+    "storm":        (r"storms?|hurricanes?|tornado\w*|thunder\w*|lightning|cyclones?|blizzards?", False),
+    "cell":         (r"inside (the|your|a) body|bloodstream|blood vessels?|inside (a|the|your) cells?|microscop\w+|bacteria|viruses|virus|organs?|tissues?|dna", False),
+    "brain":        (r"brains?|neurons?|synapses?|neural|cortex|skull", False),
+    "lab":          (r"laborator\w+|lab|experiments?|scientists?", True),
+    "city":         (r"cit(y|ies)|downtown|skyscrapers?|metropolis|skyline|urban", False),
+    "street":       (r"streets?|roads?|traffic|sidewalks?|crosswalk|neighbou?rhood|town", True),
+    "rooftop":      (r"rooftops?|on the roof", False),
+    "data":         (r"internet|servers?|data ?centers?|computers?|network|online|cyberspace|software|the cloud|database", True),
+    "tunnel":       (r"wormhole|tunnel|through time|time travel|time machine|timeline", True),
+    "sky":          (r"sky|skies|clouds?|atmosphere|airplanes?|aeroplane|flying|altitude|high above", True),
+    "forest":       (r"forests?|jungles?|woods?|rainforest\w*|woodland|trees", False),
+    "cave":         (r"caves?|caverns?|underground|mines?|beneath the (ground|surface|earth)|bedrock|rock layers|strata", False),
+    "hills":        (r"hills?|meadow\w*|countryside|farms?|fields?|plains|mountains?|valley|village", True),
+    "room":         (r"rooms?|kitchen|bedroom|living room|classroom|office|apartment|inside (a|the|his|her|your) house", True),
+}
+_PLACE_RX = {a: re.compile(r"\b(?:" + rx + r")\b", re.I) for a, (rx, weak) in _PLACE_DEFS.items()}
+_PLACE_WEAK = {a for a, (rx, weak) in _PLACE_DEFS.items() if weak}
+_PREP_BEFORE = re.compile(r"\b(in|at|on|under|beneath|inside|across|through|above|over|near|into|from|within|along|toward|towards|beyond|around|deep in|out in|to)\s+(the|a|an|this|that|his|her|their|our|your|its|these|those)?\s*(\w+\s+){0,2}$", re.I)
+# which topic's palette fits a place
+PLACE_TOPIC = {"space": "space", "galaxy": "space", "solar_system": "space", "orbit": "space", "underwater": "ocean", "deep_sea": "ocean",
+               "ocean": "ocean", "beach": "ocean", "volcano": "volcano", "ice": "ice", "desert": "desert", "storm": "weather", "cell": "body",
+               "brain": "brain", "lab": "physics", "city": "city", "street": "city", "rooftop": "city", "data": "tech", "tunnel": "physics",
+               "sky": "weather", "forest": "nature", "cave": "earth", "hills": "nature", "room": "generic"}
+
+
+def place_scores(text):
+    """{alias: score}. A place written as a place ('in the desert', 'under the sea') counts 3, a plain mention 1;
+    weak words only count when written as a place."""
+    sc = {}
+    for a, rx in _PLACE_RX.items():
+        for m in rx.finditer(text):
+            strong = bool(_PREP_BEFORE.search(text[max(0, m.start() - 40):m.start()]))
+            if a in _PLACE_WEAK and not strong:
+                continue
+            sc[a] = sc.get(a, 0) + (3 if strong else 1)
+    return sc
+
+
+def place_of(text):
+    """-> (alias or None, score). Score >= 2 is a clear place; >= 3 a place that was named as one."""
+    sc = place_scores(text)
+    if not sc:
+        return None, 0
+    # more specific places beat their general cousins when both appear (underwater > ocean, galaxy > space)
+    for specific, general in (("underwater", "ocean"), ("deep_sea", "ocean"), ("deep_sea", "underwater"), ("galaxy", "space"),
+                              ("solar_system", "space"), ("orbit", "space"), ("beach", "ocean"), ("rooftop", "city")):
+        if specific in sc and general in sc:
+            sc[specific] += sc.pop(general)
+    best = max(sc.items(), key=lambda kv: kv[1])
+    return best
