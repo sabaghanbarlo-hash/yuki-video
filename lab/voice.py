@@ -2,6 +2,7 @@
 import asyncio, hashlib, re, subprocess, time, wave, zlib
 from pathlib import Path
 import numpy as np
+from . import voice_polish as VP
 
 SR = 24000
 
@@ -171,22 +172,23 @@ def _voicestudio(ref):
     return _VS["m"]
 
 
-def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, instruct="female, young adult, warm, expressive"):
-    """Speak `text` with Voice Studio's OmniVoice model: in the voice of `ref` when there is a sample, otherwise a
-    designed voice. Sentence by sentence; finished sentences are cached on disk."""
+def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
+    """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
+    Sentence by sentence; finished sentences are cached on disk."""
+    cfg = VP.mood_cfg(emotion)
     cache = Path(tmp) / "vs_cache"
     cache.mkdir(parents=True, exist_ok=True)
-    rid = _file_md5(ref)[:10] if ref and Path(ref).exists() else "design"
-    ref = ref if rid != "design" else None
-    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
+    ref = VP.pick_ref(ref, emotion) if ref and Path(ref).exists() else None
+    rid = _file_md5(ref)[:10] if ref else "design"
+    sp = round(float(speed) * cfg["speed"], 3)
     pieces = []
-    for sent in sents:
-        key = hashlib.md5(f"{rid}|{speed}|{steps}|{sent}".encode()).hexdigest()[:16]
+    for sent in VP.split_sentences(text):
+        key = hashlib.md5(f"v2|{rid}|{sp}|{steps}|{sent}".encode()).hexdigest()[:16]
         f = cache / f"{key}.wav"
         if not f.exists():
             import torchaudio
             m = _voicestudio(ref)
-            kw = dict(text=sent, language="en", num_step=steps, speed=speed)
+            kw = dict(text=sent, language="en", num_step=steps, speed=sp)
             if ref:
                 kw["voice_clone_prompt"] = _VS["prompt"]
             else:
@@ -196,8 +198,8 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, instruct="female, you
             torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
             to_wav(raw, f)
             raw.unlink(missing_ok=True)
-        pieces.append(trim(read_wav(f), keep=0.04))
-        pieces.append(silence(0.16))
+        a = VP.gain_db(VP.polish(read_wav(f)), cfg["db"])
+        pieces += [a, silence(cfg["gap"] + (0.10 if sent.endswith("?") else 0.0))]
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
 
@@ -273,7 +275,7 @@ def synth(text, args, idx, tmp, emotion=None):
     if args.tts == "clone":
         return synth_clone(text, getattr(args, "ref", None), tmp, getattr(args, "exaggeration", 0.5), getattr(args, "cfg", 0.5))
     if args.tts == "voicestudio":
-        return synth_voicestudio(text, getattr(args, "ref", None), tmp, getattr(args, "speed", 1.0), getattr(args, "steps", 16))
+        return synth_voicestudio(text, getattr(args, "ref", None), tmp, getattr(args, "speed", 1.0), getattr(args, "steps", 16), emotion=emotion)
     if args.tts == "babble":
         return synth_babble(text)
     return silent_words(text)
