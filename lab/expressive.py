@@ -127,14 +127,22 @@ def _shift(a, st):
 
 def _contour(a, st, curve):
     """Move the pitch by `st` semitones on average and bend it along `curve` = semitone offsets at 0 %, 60 %, 100 % of the
-    sentence (variable-speed resampling). The length is kept by the caller through the voice speed."""
+    sentence (variable-speed resampling). The length is kept by the caller through the voice speed.
+    The read position always runs to the very end of the recording: if the bent pitch makes the average read speed
+    slower than planned, the rest of the audio is still played (before, the last part of the sentence was dropped and
+    the final word was cut off)."""
     if len(a) < 16:
         return a
     n0 = max(16, int(len(a) / (2 ** (st / 12.0))))
     x = np.linspace(0, 1, n0)
     semis = st + np.interp(x, [0, 0.6, 1.0], curve)
-    pos = np.cumsum(2 ** (semis / 12.0))
-    pos = pos[pos < len(a) - 1]
+    step = 2 ** (semis / 12.0)
+    pos = np.cumsum(step) - step[0]
+    last = len(a) - 1
+    if pos[-1] < last:                                       # reached the end too late: keep reading to the end
+        extra = int(np.ceil((last - pos[-1]) / step[-1]))
+        pos = np.concatenate([pos, pos[-1] + step[-1] * np.arange(1, extra + 1)])
+    pos = pos[pos <= last]
     return np.interp(pos, np.arange(len(a)), a).astype(np.float32)
 
 

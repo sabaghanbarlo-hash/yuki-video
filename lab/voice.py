@@ -32,12 +32,20 @@ def silence(sec):
 
 
 def trim(a, keep=0.06, thr=0.012):
+    """Cut silence at both ends. Word endings (s, t, f, soft vowels) are quiet, so the cut level is low and a generous
+    tail is kept and faded out: the last word is never chopped."""
+    keep = max(keep, 0.12)
+    thr = min(thr, 0.004)
     idx = np.where(np.abs(a) > thr)[0]
     if len(idx) == 0:
         return a
     s = max(0, idx[0] - int(keep * SR))
     e = min(len(a), idx[-1] + int(keep * SR))
-    return a[s:e]
+    out = a[s:e].copy()
+    n = min(len(out) // 2, int(0.02 * SR))
+    if n > 1:
+        out[-n:] *= np.linspace(1, 0, n, dtype=np.float32)
+    return out
 
 
 # ---------------------------------------------------------------- voices
@@ -131,7 +139,7 @@ def synth_clone(text, ref, tmp, exaggeration=0.5, cfg=0.5):
     sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
     pieces = []
     for sent in sents:
-        key = hashlib.md5(f"{rid}|{exaggeration}|{cfg}|{sent}".encode()).hexdigest()[:16]
+        key = hashlib.md5(f"v2|{rid}|{exaggeration}|{cfg}|{sent}".encode()).hexdigest()[:16]
         f = cache / f"{key}.wav"
         if not f.exists():
             import torchaudio
@@ -183,7 +191,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
     sp = round(float(speed) * cfg["speed"], 3)
     pieces = []
     for sent in VP.split_sentences(text):
-        key = hashlib.md5(f"v2|{rid}|{sp}|{steps}|{sent}".encode()).hexdigest()[:16]
+        key = hashlib.md5(f"v3|{rid}|{sp}|{steps}|{sent}".encode()).hexdigest()[:16]
         f = cache / f"{key}.wav"
         if not f.exists():
             import torchaudio

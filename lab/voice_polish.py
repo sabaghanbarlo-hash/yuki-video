@@ -105,11 +105,11 @@ def remove_breaths(a, level=None):
     cut = np.zeros(len(rms), bool)
     for s, e in _runs(breathy):
         dur = (e - s) * 0.010
-        if not (0.12 <= dur <= 0.9):
+        if not (0.25 <= dur <= 0.9):
             continue
         before = s == 0 or quiet[max(0, s - 4):s].any()
-        after = e >= len(rms) or quiet[e:e + 4].any()
-        if before or after:
+        # an inhale comes BEFORE speech; a soft noisy sound right after speech is the end of a word ("yes", "this"): keep it
+        if before:
             cut[max(0, s - 1):min(len(rms), e + 1)] = True
     if not cut.any():
         return a
@@ -140,18 +140,22 @@ def tighten(a, max_gap=0.14, min_gap=0.20, level=None):
     return np.concatenate(pieces) if len(pieces) > 1 else a
 
 
-def trim_edges(a, keep=0.04):
+def trim_edges(a, keep=0.14):
     """Trim silence/breath at both ends, relative to this clip's own speech level (not a fixed threshold)."""
     rms, _ = _frames(a)
     if len(rms) == 0:
         return a
     lv = _level(rms)
-    idx = np.where(rms > 0.18 * lv)[0]
+    idx = np.where(rms > 0.04 * lv)[0]
     if len(idx) == 0:
         return a
     s = max(0, idx[0] * HOP - int(keep * SR))
     e = min(len(a), (idx[-1] + 1) * HOP + int(keep * SR))
-    return a[s:e]
+    out = a[s:e].copy()
+    n = min(len(out) // 2, int(0.02 * SR))
+    if n > 1:
+        out[-n:] *= np.linspace(1, 0, n, dtype=np.float32)
+    return out
 
 
 def polish(a, max_gap=0.14):

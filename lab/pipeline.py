@@ -70,7 +70,7 @@ def voice(plan, args, tmp):
         return align_upload(args.audio, [s["spoken"] for _, _, s in sents], tmp)
     out = []
     for n, (sc, i, s) in enumerate(sents):
-        key = hashlib.md5(f"{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
+        key = hashlib.md5(f"v2|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
         f = tmp / "voice" / f"{key}.npy"
         if f.exists() and not getattr(args, "audio_dir", None):
             out.append(np.load(f)); continue
@@ -124,7 +124,7 @@ def align_upload(path, spoken, tmp):
     out = []
     for a, b in zip(edges[:-1], edges[1:]):
         seg = x[int(a * hop): int(b * hop)]
-        out.append(A.trim(seg.astype(np.float32), keep=0.04))
+        out.append(A.trim(seg.astype(np.float32), keep=0.12))
     return out
 
 
