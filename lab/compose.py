@@ -67,7 +67,10 @@ class Compositor:
     def stage(self, i):
         if i not in self._stages:
             sc = self.scenes[i]
-            if sc["style"] == "voxel":
+            if sc["style"] == "collage":
+                from .collage import CollageStage
+                st = CollageStage(sc)
+            elif sc["style"] == "voxel":
                 from .stage3d import Stage3D
                 st = Stage3D(sc)
             else:
@@ -108,18 +111,21 @@ class Compositor:
         sc = self.scenes[i]
         im = self.scene_frame(i, t)
         lt = t - sc["t0"]
-        if i > 0 and lt < TR:
+        tr = sc.get("tr_len", TR)
+        if i > 0 and lt < tr:
             prev = self.scene_frame(i - 1, t, hold_end=True)
-            im = blend(prev.convert("RGBA"), im.convert("RGBA"), lt / TR, sc["transition"])
+            im = blend(prev.convert("RGBA"), im.convert("RGBA"), lt / tr, sc["transition"])
         im = im.convert("RGBA")
         self._overlays(im, i, t)
-        if sc["style"] != "voxel" or True:
+        collage = sc["style"] == "collage"
+        if not collage:
             im.alpha_composite(O.vignette(W, H, 0.5 if sc["style"] != "voxel" else 0.3))
-        # fade from / to black
+        # fade from / to black (collage videos fade from / to the cream page)
+        edge = (238, 233, 223, 255) if collage else (0, 0, 0, 255)
         if t < 0.5:
-            im = Image.blend(Image.new("RGBA", (W, H), (0, 0, 0, 255)), im, ease_out(t / 0.5))
+            im = Image.blend(Image.new("RGBA", (W, H), edge), im, ease_out(t / 0.5))
         elif t > self.total - 0.7:
-            im = Image.blend(im, Image.new("RGBA", (W, H), (0, 0, 0, 255)), clamp((t - (self.total - 0.7)) / 0.7))
+            im = Image.blend(im, Image.new("RGBA", (W, H), edge), clamp((t - (self.total - 0.7)) / 0.7))
         return im
 
     def frame_bytes(self, fr):
@@ -137,7 +143,7 @@ class Compositor:
             O.paste(im, c2, (W - c2.width) // 2, (H - c2.height) // 2, clamp(p * 2))
             return
         # section chip
-        if sc["heading"] and lt < 2.8:
+        if sc["heading"] and lt < 2.8 and sc["style"] != "collage":
             a = clamp(lt / 0.3) * clamp((2.8 - lt) / 0.4)
             O.paste(im, O.chip_img(sc["heading"], O.ACCENTS[sc["idx"] % len(O.ACCENTS)], 26), 34, 28 + (1 - ease_out(clamp(lt / 0.3))) * -20, a)
         # no burned-in captions: the video is delivered without subtitles

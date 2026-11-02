@@ -10,7 +10,7 @@ on:
         description: "Script file, e.g. scripts/my-video.txt"
         default: "scripts/sample.txt"
       style:
-        description: "auto, flat, voxel or toon"
+        description: "auto, flat, voxel, toon or collage"
         default: "auto"
       seed:
         description: "Arrangement number"
@@ -36,7 +36,7 @@ jobs:
       - name: Check inputs
         run: |
           [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
-          [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" ]] || { echo "::error::bad style"; exit 1; }
+          [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" || "$STYLE" == "collage" ]] || { echo "::error::bad style"; exit 1; }
           [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
           echo "SEED=$SEED" >> "$GITHUB_ENV"
           test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }

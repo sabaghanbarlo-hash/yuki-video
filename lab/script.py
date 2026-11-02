@@ -18,7 +18,8 @@ ABBR = ("mr", "mrs", "ms", "dr", "prof", "st", "vs", "etc", "e.g", "i.e", "appro
 WPS = 2.6          # narration speed in words per second (used for estimates and for splitting)
 
 CUE_KEYS = {"env", "environment", "place", "style", "look", "camera", "cam", "char", "character", "actor", "seed", "transition",
-            "mood", "template", "sfx", "pause", "music", "entity", "show", "label", "stat", "title", "caption", "host", "zoom", "palette", "time"}
+            "mood", "template", "sfx", "pause", "music", "entity", "show", "label", "stat", "title", "caption", "host", "zoom", "palette", "time",
+            "text", "pose", "face", "expr", "layout", "treat", "side", "media", "file"}
 
 
 @dataclass

@@ -7,7 +7,8 @@
     python generate.py scripts/sample.txt --audio my-voice.mp3   # your own narration recording (cut into sentences automatically)
     python generate.py scripts/sample.txt --tts babble           # offline test sound (not speech) - checks the whole pipeline
     python generate.py scripts/sample.txt --preview out/prev     # scene stills + plan.json, no voice needed (fast)
-    python generate.py scripts/sample.txt --style voxel          # force one look: flat | voxel | toon (default: chosen per scene)
+    python generate.py scripts/sample.txt --style voxel          # force one look: flat | voxel | toon | collage (default: chosen per scene)
+    python generate.py scripts/collage-sample.txt --style collage  # Yuki in a corner, a picture every few seconds (see README)
 
 Script format: see README.md. Everything but the words is optional: the director chooses places, looks, characters and
 camera moves from what the script is about.
@@ -34,7 +35,8 @@ def main():
     ap.add_argument("--cfg", type=float, default=0.5)
     ap.add_argument("--audio", default=None, help="one recording of the whole narration (mp3/wav/m4a); used instead of a synthetic voice")
     ap.add_argument("--audio-dir", default=None, help="folder with 001.wav, 002.wav ... one recording per sentence")
-    ap.add_argument("--style", default=None, choices=["flat", "voxel", "toon"], help="force one visual style for every scene")
+    ap.add_argument("--style", default=None, choices=["flat", "voxel", "toon", "collage"], help="force one visual style for every scene (collage = Yuki + changing pictures)")
+    ap.add_argument("--media", default="auto", choices=["auto", "ai", "stock", "local", "drawn"], help="collage pictures: auto (yours > AI > stock > drawn), ai, stock, local (media/ folder only) or drawn (offline)")
     ap.add_argument("--seed", type=int, default=0, help="change it to get a different arrangement of the same script")
     ap.add_argument("--max-scenes", type=int)
     ap.add_argument("--workers", type=int, default=None)

@@ -33,6 +33,8 @@ def make_thumbnail(text, out, seed=0, style=None):
     amp = np.full(int(total * P.FPS) + 5, 0.0, np.float32)
     comp = Compositor(plan, amp, amp)
     bodies = [s for s in plan["scenes"] if s["kind"] == "body"]
+    if bodies and all(b["style"] == "collage" for b in bodies):
+        return _collage_thumbnail(plan, bodies, out)
     best = None
     for sc in bodies[:5]:
         n = sum(1 for a in sc["shots"][0]["actors"] if a["k"] in ("entity", "prop", "human", "char")) + (0 if sc["style"] == "voxel" else 2)
@@ -61,4 +63,39 @@ def make_thumbnail(text, out, seed=0, style=None):
         O.paste(im, t_im, 48, y + int(i * size * 1.12))
     O.paste(im, O.chip_img("YUKI LAB", O.ACCENTS[1], 34), 52, 44)
     im.convert("RGB").save(out, quality=90)
+    return out
+
+
+def _collage_thumbnail(plan, bodies, out):
+    """Collage look: the cream page, the title in big ink letters with a highlighter bar, Yuki large and reacting, a reaction card."""
+    from PIL import ImageFilter
+    from .collage import paper, accent_img, PANEL_COLOURS, INK
+    from .fonts import font
+    from . import yuki_rig as Y
+    im = paper().copy()
+    title = punch(plan["title"] or bodies[0]["text"][:60])
+    lines = title.split("\n")
+    d = ImageDraw.Draw(im)
+    size = 128
+    while size > 60:                                              # shrink until the longest line clears Yuki
+        f = font(size, "bold")
+        if max(d.textlength(l, font=f) for l in lines) <= 760:
+            break
+        size -= 6
+    f = font(size, "bold")
+    y = int(H * 0.5 - len(lines) * size * 0.62)
+    for i, l in enumerate(lines):
+        yy = y + int(i * size * 1.14)
+        if i == len(lines) - 1:                                   # highlighter bar behind the last line
+            w = d.textlength(l, font=f)
+            bar = Image.new("RGBA", (int(w + 36), int(size * 0.5)), PANEL_COLOURS[plan.get("seed", 0) % len(PANEL_COLOURS)] + (235,))
+            im.alpha_composite(bar, (46, yy + int(size * 0.55)))
+        d.text((60, yy), l, font=f, fill=INK + (255,))
+    # the first collage beat decides how Yuki looks
+    sh = bodies[0]["shots"][0]
+    face = sh["face"] if sh["face"] not in ("sleepy",) else "shocked"
+    Y.draw_figure(im, 1050, H + 120, 1.0, pose="shrug" if face in ("shocked", "worried") else "think", face=face, amp=0.0, t=1.3, flip=False)
+    card = accent_img({"curious": "q", "shocked": "ex", "worried": "sweat"}.get(face, "ex"), 190)
+    im.alpha_composite(card.rotate(-6, resample=Image.BICUBIC), (1090, 40))
+    im.convert("RGB").save(out, quality=92)
     return out

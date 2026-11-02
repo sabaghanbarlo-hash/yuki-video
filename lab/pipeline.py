@@ -47,9 +47,10 @@ def build_plan(text, seed=0, force_style=None, max_scenes=None):
     plan = direct(title, raw, seed, force_style)
     sc = plan["scenes"]
     topic = sc[0]["topic"]
-    if title:
-        sc.insert(0, _card_scene("title", 0, title, topic, plan.get("seed", 0) + 11))
-    sc.append(_card_scene("outro", 0, "Thanks for watching", sc[-1]["topic"], 77))
+    if not all(x["style"] == "collage" for x in sc):             # collage videos start straight on the hook and end on the last beat
+        if title:
+            sc.insert(0, _card_scene("title", 0, title, topic, plan.get("seed", 0) + 11))
+        sc.append(_card_scene("outro", 0, "Thanks for watching", sc[-1]["topic"], 77))
     for i, s in enumerate(sc):
         s["idx"] = i
     plan["has_title"] = bool(title)
@@ -160,9 +161,16 @@ def timeline(plan, durations):
                 sh["t0"], sh["t1"] = sc["t0"], sc["t1"]
                 continue
             i0, i1 = sh["sent"]
-            sh["t0"] = sc["t0"] if si == 0 else sc["sentences"][i0]["t0"] - 0.12
-            nxt = sc["shots"][si + 1] if si + 1 < len(sc["shots"]) else None
-            sh["t1"] = (sc["sentences"][nxt["sent"][0]]["t0"] - 0.12) if nxt else sc["t1"]
+            if sh.get("span"):                                   # collage beat: a slice of one sentence
+                sn = sc["sentences"][i0]
+                a = sh["span"][0]
+                sh["t0"] = sc["t0"] if si == 0 else sn["t0"] + a * (sn["t1"] - sn["t0"]) - (0.12 if a == 0 else 0.0)
+            else:
+                sh["t0"] = sc["t0"] if si == 0 else sc["sentences"][i0]["t0"] - 0.12
+        for si, sh in enumerate(sc["shots"]):
+            if sh["sent"] is None:
+                continue
+            sh["t1"] = sc["shots"][si + 1]["t0"] if si + 1 < len(sc["shots"]) else sc["t1"]
     return t
 
 
@@ -238,6 +246,10 @@ def mix(plan, sent_audio, total):
             _put(fx, g, at, 0.30 * ev.get("gain", 1.0))
             last_t = at
         for sh in sc["shots"]:
+            if sc["kind"] == "body" and sc["style"] == "collage" and sh.get("cut_sfx") and sh["t0"] > sc["t0"] + 0.2:
+                g = S.get(sh["cut_sfx"])
+                if g is not None:
+                    _put(fx, g, max(0, sh["t0"] - 0.02), 0.14)
             tpl = sh.get("template")
             if sc["kind"] == "body" and tpl in ("stat", "timeline", "question", "pair", "process"):
                 g = S.get("pop" if tpl != "stat" else "ding")
@@ -329,6 +341,17 @@ def mouth_levels(voice_track, n_frames):
     return lvl, amp
 
 
+def prepare_media(plan, args, tmp, out_path):
+    """Collage videos: fetch (or find) the picture of every beat; write <video>.credits.txt for stock photos."""
+    if not any(sc["style"] == "collage" for sc in plan["scenes"]):
+        return
+    from . import media as M
+    root = Path(__file__).resolve().parent.parent
+    M.prefetch(plan, getattr(args, "media", "auto") or "auto", cache_dir=root / ".work" / "media", local_dir=root / "media")
+    if plan.get("credits"):
+        Path(out_path).with_suffix(".credits.txt").write_text("Pictures used in this video:\n" + "\n".join("- " + c for c in plan["credits"]) + "\n", encoding="utf-8")
+
+
 def make(text, args, out_path, tmp):
     """Everything: returns (total_seconds, plan)."""
     tmp = Path(tmp); tmp.mkdir(parents=True, exist_ok=True)
@@ -336,6 +359,7 @@ def make(text, args, out_path, tmp):
     print(f"plan: {sum(1 for s in plan['scenes'] if s['kind'] == 'body')} scenes - " + ", ".join(f"{x['style']}/{x['env']}" for x in plan["scenes"] if x["kind"] == "body"), flush=True)
     if getattr(args, "export_beats", False):
         return 0, plan
+    prepare_media(plan, args, tmp, out_path)
     sent_audio = voice(plan, args, tmp)
     durs = [len(a) / SR for a in sent_audio]
     total = timeline(plan, durs)
@@ -353,5 +377,6 @@ def _plan_json(plan):
     for sc in plan["scenes"]:
         out["scenes"].append(dict(idx=sc["idx"], kind=sc["kind"], heading=sc["heading"], style=sc["style"], env=sc["env"], mood=sc["mood"], topic=sc["topic"],
                                   transition=sc["transition"], t0=round(sc["t0"], 2), t1=round(sc["t1"], 2), text=sc.get("text", "")[:400],
-                                  shots=[dict(template=s["template"], t0=round(s["t0"], 2), t1=round(s["t1"], 2), things=[a.get("name") or a.get("k") for a in s["actors"] if a["k"] in ("entity", "prop", "char", "human", "creature", "critter")]) for s in sc["shots"]]))
+                                  shots=[dict(template=s["template"], t0=round(s["t0"], 2), t1=round(s["t1"], 2), things=[a.get("name") or a.get("k") for a in s["actors"] if a["k"] in ("entity", "prop", "char", "human", "creature", "critter")],
+                                            **({k: s.get(k) for k in ("kind", "layout", "treat", "pose", "face", "queries", "title", "text")} if sc["style"] == "collage" else {})) for s in sc["shots"]]))
     return out

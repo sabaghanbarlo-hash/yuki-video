@@ -46,6 +46,9 @@ else:
         "Yuki Lab: animated science explainers, fascinating facts and what-if scenarios.\n\n#science #education #whatif"
 TAGS = {"space": "space", "earth": "earth science", "ocean": "ocean", "weather": "weather", "volcano": "volcano", "ice": "ice", "desert": "desert", "nature": "nature",
         "body": "human body", "brain": "brain", "micro": "biology", "physics": "physics", "tech": "technology", "city": "cities", "history": "history", "disaster": "disasters"}
+_cred = os.path.splitext(mp4)[0] + ".credits.txt"
+if _cred and os.path.exists(_cred):
+    desc = desc + "\n\n" + open(_cred, encoding="utf-8").read().strip()
 meta = {"snippet": {"title": title, "description": desc[:4900], "categoryId": "27",
                     "tags": ["science", "explained", "what if", "facts", "animation", TAGS.get(topic, "science"), "Yuki Lab"]},
         "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False}}

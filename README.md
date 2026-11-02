@@ -37,6 +37,19 @@ one still per scene) and *Make the video*. The MP4 appears under the run's *Arti
 
 Rendering speed: about 8 frames/s per core; a 3-minute video takes roughly 10-15 minutes on a 2-core runner.
 
+## Collage look (`--style collage`)
+
+Cream paper, Yuki reacting in a corner, and a new picture every 1.5-4 seconds: framed photos, colour-backed panels, paper-cut collages,
+icon + label pairs, big typed words and "?" / "!" cards. Nothing is taken from other people's videos or characters.
+
+- Choose **Collage** in the Look cards (or `--style collage`, or `[style: collage]` in a scene).
+- **Pictures** (`--media auto|ai|stock|local|drawn`, also a selector on the page): auto = your files in `media/` -> AI-drawn picture
+  (Pollinations, free) -> free-licence stock (Wikimedia / Openverse) -> a picture the lab draws itself, so it never fails.
+- **Your own pictures**: drop jpg/png/webp into `media/`. A file is used when its name shares words with the beat
+  (`tired-man.jpg`), or name it in the script: `[show: file:tired-man.jpg]`.
+- Quoted words in the script become big typed text cards; numbers become stat cards.
+- Stock-photo credits are written to `<video>.credits.txt` and appended to the YouTube description.
+
 ## Script format
 
     # Video title                      <- title card

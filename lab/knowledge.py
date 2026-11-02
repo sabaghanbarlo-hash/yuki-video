@@ -69,7 +69,8 @@ ALL_ENVS = {"flat": ["deep_space", "nebula", "solar", "orbit", "ocean_deep", "oc
                       "micro", "neural", "lab", "night_city", "data", "tunnel", "day_sky", "forest"],
             "voxel": ["plains", "desert", "snow", "ocean", "volcano", "city", "cave", "space", "underwater", "islands"],
             "toon": ["street", "room", "hills", "beach", "space", "desert", "snow", "stage", "underwater", "rooftop", "cave", "lab", "forest"]}
-STYLE_NAMES = {"flat": "Flat explainer", "voxel": "Blocky 3D world", "toon": "Simple characters"}
+STYLE_NAMES = {"flat": "Flat explainer", "voxel": "Blocky 3D world", "toon": "Simple characters", "collage": "Collage explainer (Yuki + pictures)"}
+ALL_ENVS["collage"] = ["paper"]
 
 # time of day / palette flavours per topic
 PALETTES = {

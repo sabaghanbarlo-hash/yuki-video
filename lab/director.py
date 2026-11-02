@@ -16,7 +16,8 @@ from .script import RawScene, WPS
 
 STYLE_ALIASES = {"flat": "flat", "kurz": "flat", "kurzgesagt": "flat", "infographic": "flat", "explainer": "flat", "diagram": "flat",
                  "voxel": "voxel", "minecraft": "voxel", "blocky": "voxel", "blocks": "voxel", "3d": "voxel", "block": "voxel",
-                 "toon": "toon", "characters": "toon", "character": "toon", "cartoon": "toon", "people": "toon", "simple": "toon"}
+                 "toon": "toon", "characters": "toon", "character": "toon", "cartoon": "toon", "people": "toon", "simple": "toon",
+                 "collage": "collage", "show": "collage", "host": "collage", "yuki": "collage", "pictures": "collage", "panels": "collage", "explainer_show": "collage"}
 ENV_ALIASES = {   # words people write -> env ids per style
     "space": dict(flat="deep_space", voxel="space", toon="space"), "deep_space": dict(flat="deep_space", voxel="space", toon="space"),
     "galaxy": dict(flat="nebula", voxel="space", toon="space"), "nebula": dict(flat="nebula", voxel="space", toon="space"),
@@ -227,8 +228,11 @@ def build_scene(idx, raw: RawScene, prev, rng, force_style=None):
     place, pscore = K.place_of(text)
     if pscore < 2:                                                  # no place named here: stay where the previous scene was
         place = prev.get("_place") if prev and (topic == prev["topic"] or topic in (None, "generic")) else None
-    env = choose_env(rng, topic, style, cues, envmem, place)
-    pal = choose_pal(rng, K.PLACE_TOPIC.get(place, topic) if place else topic, cues, env)
+    if style == "collage":
+        env, pal = "paper", "day"
+    else:
+        env = choose_env(rng, topic, style, cues, envmem, place)
+        pal = choose_pal(rng, K.PLACE_TOPIC.get(place, topic) if place else topic, cues, env)
     mood = cues.get("mood") if cues.get("mood") in K.MOODS or cues.get("mood") == "neutral" else f_all["mood"]
     tod = choose_tod(rng, env, topic, mood, cues) if style == "voxel" else None
     seed = int(cues["seed"]) if cues.get("seed", "").isdigit() else rng.randrange(1, 9999)
@@ -248,6 +252,13 @@ def build_scene(idx, raw: RawScene, prev, rng, force_style=None):
             tr = rng.choice([t for t in TRANSITIONS if t != tr])
     scene["transition"] = tr
     # shots
+    if style == "collage":
+        from . import collage_dir
+        scene["shots"] = collage_dir.plan_shots(scene, rng, prev, first_overall=(idx == 0))
+        scene["transition"] = "fade" if idx else "fade"
+        scene["tr_len"] = 0.22
+        scene["sfx"] = sound_cues(sents, rng, scene)
+        return scene
     groups = split_shots(sents, rng)
     shots = []
     used_templates = []
