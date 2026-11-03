@@ -26,6 +26,52 @@ MOOD = {  # rate x, semitones, dB
 }
 
 
+HAPPY_W = re.compile(r"\b(love|great|amazing|awesome|fun|funny|haha|lol|wonderful|best|win|won|delicious|beautiful|yay|good news)\b", re.I)
+SAD_W = re.compile(r"\b(sadly|unfortunately|tired|exhausted|alone|lonely|lost|miss|failed|fail|cry|crying|hurts|pain|gone|never again|sorry)\b", re.I)
+SHOCK_W = re.compile(r"\b(wow|whoa|wait|what|suddenly|unbelievable|impossible|shocking|incredible|really|seriously|no way)\b", re.I)
+WORRY_W = re.compile(r"\b(dangerous|careful|warning|risk|afraid|scared|worried|anxious|stress|panic|trouble|problem)\b", re.I)
+ANGRY_W = re.compile(r"\b(hate|angry|furious|annoying|ridiculous|stupid|terrible|worst)\b", re.I)
+
+
+def sentence_mood(text, beat_mood="neutral"):
+    """The feeling of ONE sentence: its own words and punctuation decide, the scene mood is the fallback.
+    (A calm scene still has a shocked line and a funny line in it.)"""
+    t = text.strip()
+    end = t.rstrip(" \"\u201d')]")[-1:]
+    if _is_shout(t.split()):
+        return "angry" if ANGRY_W.search(t) else "excited"
+    if ANGRY_W.search(t) and end in "!.":
+        return "angry"
+    if SHOCK_W.search(t) and end in "!?":
+        return "shocked"
+    if HAPPY_W.search(t) and end in "!.":
+        return "excited" if end == "!" else "happy"
+    if SAD_W.search(t) or t.endswith(("...", "\u2026")):
+        return "sad"
+    if WORRY_W.search(t):
+        return "worried"
+    if end == "?":
+        return "curious"
+    if end == "!":
+        return "excited" if beat_mood in ("neutral", "curious") else beat_mood
+    return beat_mood or "neutral"
+
+
+def vocal_tag(text, smood, k):
+    """A small human sound for the Voice Studio engine: -> (prefix, suffix). Rare on purpose (about every 3rd-4th fitting line),
+    never in a row, so it feels like a person and not like a sound-effects bin."""
+    if abs(_jit(text, 5)) > 0.62 and k % 3:               # skip most of them
+        return "", ""
+    low = text.lower()
+    if smood == "sad" and re.search(r"\b(sadly|unfortunately|tired|exhausted|never|gone|sorry)\b", low):
+        return "[sigh] ", ""
+    if smood == "shocked" and re.match(r"\s*(wow|whoa|wait|what|no way|oh)\b", low):
+        return "[surprise-ah] ", ""
+    if smood in ("excited", "happy") and re.search(r"\b(haha|lol|funny|hilarious)\b", low):
+        return "", " [laughter]"
+    return "", ""
+
+
 def _jit(text, k):
     h = hashlib.md5((text + str(k)).encode()).digest()
     return (h[k % 16] / 255.0 - 0.5) * 2          # -1 .. 1, repeatable
@@ -62,7 +108,7 @@ def plan(text, mood="neutral", base_speed=1.0, energy=1.0):
         for sent in [x.strip(" \"\u201c\u201d") for x in SENT.findall(chunk) if x.strip(" \"\u201c\u201d")]:
             if re.search(r"\w", sent):
                 segs.append((sent, quoted))
-    mrate, mst, mdb = MOOD.get(mood, MOOD["neutral"])
+    beat_mood = mood
     out, prev_words = [], LAST_WORDS[0]
     for i, (t, quoted) in enumerate(segs):
         words = re.findall(r"[\w'’-]+", t)
@@ -72,6 +118,7 @@ def plan(text, mood="neutral", base_speed=1.0, energy=1.0):
         ell = t.rstrip(" \"”')]").endswith(("...", "…"))
         shout = _is_shout(t.split())
         rate, st, db, pre, post = 1.0, 0.0, 0.0, 0.0, 0.30
+        mrate, mst, mdb = MOOD.get(sentence_mood(t, beat_mood), MOOD["neutral"])
         if end == "!":
             rate, st, db, post = 1.05, 1.0, 1.5, 0.28
         elif end == "?":

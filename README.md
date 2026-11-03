@@ -87,3 +87,13 @@ Adding things is data: a new topic/thing/mood is a line in `lab/knowledge.py`; a
 
 Repository secrets `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` (unchanged from Yuki Studio). The YouTube refresh token for an
 unverified app lasts about 7 days; renew it when the upload step reports `invalid_grant`.
+
+## Voice emotion, pictures and Yuki's feelings (Collage look)
+
+- **Voice**: every sentence gets its own feeling from its words and punctuation (shocked, sad, funny, excited, worried, curious...),
+  so a calm scene can still have a gasp or a laugh in it. Speed, loudness and pauses follow the feeling; deadpan punchlines are slower.
+  With the **Voice Studio** engine the lab also adds small human sounds now and then (a sigh, a laugh, a surprised "ah"). Kokoro gets the same per-sentence feeling.
+- **Pictures** look like cartoon illustrations: AI pictures are asked for in a flat 2D cartoon style, stock photos are turned into flat-colour illustrations.
+- **Yuki** has ~36 faces and ~34 poses. Script cues: `[face: crying]` `[pose: facepalm]`.
+  Faces: neutral smile happy worried shocked curious angry sleepy smug serene sad excited laughing crying teary starry lovestruck dizzy deadpan nervous gasp terrified cheeky scheming proud pained creepy determined confused awkward embarrassed inspired bored grumpy dreamy yum.
+  Poses: rest relax talk_a talk_b present point_r point_l shrug think think_l wave cheer hug cross head head_l idea pen magnify slump facepalm sob clap hands_up shy stop hips heart dance shake gasp_hands fist wave_both bow.

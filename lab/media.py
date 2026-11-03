@@ -20,7 +20,7 @@ from pathlib import Path
 from PIL import Image
 
 UA = "YukiLab/1.0 (+https://github.com/sabaghanbarlo-hash/yuki-video; contact: github issues)"
-AI_STYLE = ", flat vector editorial illustration, paper-cut collage, muted warm colours, simple shapes, soft grain, centered subject, no text, no letters, no watermark"
+AI_STYLE = ", cute 2D cartoon illustration, flat vector art, bold simple shapes, clean soft outlines, bright friendly colours, children's animation style, centered subject, plain simple background, not a photo, not realistic, no text, no letters, no watermark"
 OK_LICENCES = ("cc0", "public domain", "pd", "cc by", "cc-by", "cc by-sa", "cc-by-sa")
 BAD_WORDS = re.compile(r"\b(logo|flag|map of|diagram|screenshot|poster|coat of arms|signature|stamp)\b", re.I)
 IMG_EXT = (".jpg", ".jpeg", ".png", ".webp")
@@ -97,6 +97,20 @@ def ai_image(prompt, w, h, seed):
     return _as_image(data, 256), "AI-generated picture (Pollinations)"
 
 
+def toonify(im):
+    """Make a photo look like an illustration (flat colour areas, richer colour, soft edges) so stock pictures match the cartoon look."""
+    from PIL import ImageFilter, ImageEnhance, ImageChops
+    im = im.convert("RGB")
+    small = im.resize((max(320, im.width // 2), max(180, im.height // 2)), Image.LANCZOS)
+    flat = small.filter(ImageFilter.MedianFilter(5)).filter(ImageFilter.SMOOTH_MORE).filter(ImageFilter.MedianFilter(5))
+    flat = flat.quantize(colors=20, method=Image.MEDIANCUT, dither=Image.NONE).convert("RGB")
+    flat = ImageEnhance.Color(flat).enhance(1.35)
+    flat = ImageEnhance.Contrast(flat).enhance(1.08)
+    edges = small.convert("L").filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(3)).point(lambda v: 255 if v < 28 else 150)
+    ink = ImageChops.multiply(flat, Image.merge("RGB", (edges, edges, edges)))
+    return ink.resize(im.size, Image.LANCZOS)
+
+
 def _licence_ok(s):
     s = (s or "").lower().replace("_", " ")
     if "nc" in s.split() or "-nc" in s or " nc" in s or "nd" in s.split():
@@ -105,7 +119,7 @@ def _licence_ok(s):
 
 
 def wikimedia(query, seed):
-    q = urllib.parse.quote(f"{query} filetype:bitmap")
+    q = urllib.parse.quote(f"{query} illustration OR drawing OR cartoon filetype:bitmap")
     url = ("https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=12"
            f"&gsrsearch={q}&prop=imageinfo&iiprop=url|extmetadata|size|mime&iiurlwidth=1280")
     data, _ = _get(url, timeout=30, tries=2)
@@ -130,7 +144,7 @@ def wikimedia(query, seed):
 
 def openverse(query, seed):
     url = ("https://api.openverse.org/v1/images/?q=" + urllib.parse.quote(query) +
-           "&license=cc0,pdm,by,by-sa&extension=jpg,png&page_size=12&mature=false")
+           "&license=cc0,pdm,by,by-sa&extension=jpg,png&category=illustration&page_size=12&mature=false")
     data, _ = _get(url, timeout=30, tries=2)
     res = [r for r in json.loads(data).get("results", []) if (r.get("width") or 0) >= 700 and not BAD_WORDS.search(r.get("title") or "")]
     if not res:
@@ -154,7 +168,7 @@ def get_media(query, mode, w, h, seed, cache_dir, local_dir, want_file=None, sto
         log(f"file {want_file} not found in media/")
     if mode == "local":
         return None
-    key = hashlib.md5(f"{mode}|{query}|{stock_query}|{w}x{h}|{seed}".encode()).hexdigest()[:16]
+    key = hashlib.md5(f"toon2|{mode}|{query}|{stock_query}|{w}x{h}|{seed}".encode()).hexdigest()[:16]
     cp = cache_dir / f"{key}.jpg"
     meta = cache_dir / f"{key}.json"
     if cp.exists() and meta.exists():
@@ -168,8 +182,10 @@ def get_media(query, mode, w, h, seed, cache_dir, local_dir, want_file=None, sto
                 im, credit = ai_image(query, w, h, seed)
             elif src == "wikimedia":
                 im, credit = wikimedia(stock_query or query, seed)
+                im = toonify(im)
             else:
                 im, credit = openverse(stock_query or query, seed)
+                im = toonify(im)
             im.save(cp, quality=90)
             info = dict(source=src, credit="" if src == "ai" else credit)
             meta.write_text(json.dumps(info))

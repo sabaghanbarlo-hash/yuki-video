@@ -183,20 +183,31 @@ def _voicestudio(ref):
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
     """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
     Sentence by sentence; finished sentences are cached on disk."""
-    cfg = VP.mood_cfg(emotion)
+    from . import expressive as E
     cache = Path(tmp) / "vs_cache"
     cache.mkdir(parents=True, exist_ok=True)
-    ref = VP.pick_ref(ref, emotion) if ref and Path(ref).exists() else None
-    rid = _file_md5(ref)[:10] if ref else "design"
-    sp = round(float(speed) * cfg["speed"], 3)
-    pieces = []
-    for sent in VP.split_sentences(text):
-        key = hashlib.md5(f"v3|{rid}|{sp}|{steps}|{sent}".encode()).hexdigest()[:16]
+    ref0 = ref if ref and Path(ref).exists() else None
+    pieces, prev_words = [], 0
+    for k, sent in enumerate(VP.split_sentences(text)):
+        sm = E.sentence_mood(sent, emotion or "neutral")          # every sentence has its own feeling
+        cfg = VP.mood_cfg(sm)
+        ref = VP.pick_ref(ref0, sm) if ref0 else None
+        rid = _file_md5(ref)[:10] if ref else "design"
+        words = len(sent.split())
+        sp = float(speed) * cfg["speed"]
+        if sent.endswith("!"):
+            sp *= 1.03
+        if words <= 3 and prev_words >= 8 and sent.endswith((".", "!")):     # short punchline after a long line: slower, deadpan
+            sp *= 0.9
+        sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)                    # no two lines at exactly the same pace
+        pre, suf = E.vocal_tag(sent, sm, k)
+        spoken = pre + sent + suf
+        key = hashlib.md5(f"v4|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
         f = cache / f"{key}.wav"
         if not f.exists():
             import torchaudio
             m = _voicestudio(ref)
-            kw = dict(text=sent, language="en", num_step=steps, speed=sp)
+            kw = dict(text=spoken, language="en", num_step=steps, speed=sp)
             if ref:
                 kw["voice_clone_prompt"] = _VS["prompt"]
             else:
@@ -206,8 +217,10 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
             torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
             to_wav(raw, f)
             raw.unlink(missing_ok=True)
-        a = VP.gain_db(VP.polish(read_wav(f)), cfg["db"])
-        pieces += [a, silence(cfg["gap"] + (0.10 if sent.endswith("?") else 0.0))]
+        a = VP.gain_db(VP.polish(read_wav(f)), cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
+        gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
+        pieces += [a, silence(gap)]
+        prev_words = words
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
 

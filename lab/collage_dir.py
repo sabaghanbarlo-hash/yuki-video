@@ -31,6 +31,20 @@ L_LOOK = R(r"\b(look\w*|notice\w*|closer|research\w*|stud(y|ies|ied)|scientists?
 L_IDEA = R(r"\b(idea|realiz\w+|solution|key|trick|secret|turns? out|insight|answer|tip|hack|reason|because)\b")
 L_INTRO = R(r"^\s*(hey|hi|hello|welcome|today|in this (video|episode)|let.s|ever)\b")
 L_SHOCK = R(r"\b(suddenly|shock\w*|wait|unexpected\w*|surpris\w+|insane|crazy|unbelievable|wow|whoa|boom|instantly)\b")
+L_SAD = R(r"\b(sad\w*|cry|cries|cried|crying|tears?|grief|griev\w+|lost|loss|miss(ed|ing)?|alone|heartbreak\w*|heartbroken|goodbye|died|death|funeral|mourn\w*|hopeless|regret\w*|empty)\b")
+L_LAUGH = R(r"\b(funny|hilarious|joke[sd]?|laugh\w*|lol|haha+|ridiculous|silly|comedy|prank\w*|lmao)\b")
+L_LOVE = R(r"\b(love[sd]?|loving|adore\w*|romantic|crush\w*|cute|kiss\w*|beloved)\b")
+L_AWE = R(r"\b(amazing|incredible|wonder\w*|magical|breathtaking|stunning|gorgeous|marvel\w*|mind.?blowing|spectacular|awesome|inspir\w+)\b")
+L_DIZZY = R(r"\b(confus\w+|dizzy|spin\w*|complicated|paradox\w*|puzzl\w+|mess|chaos|chaotic|overwhelm\w*|makes no sense|baffl\w+|weird|strange)\b")
+L_BORED = R(r"\b(boring|bored|dull|nothing happens|same thing|routine|monoton\w+|whatever|meh|average|ordinary|so what)\b")
+L_CREEPY = R(r"\b(creepy|scary|terrifying|horror|haunt\w*|ghost\w*|dark|darkness|nightmare\w*|sinister|eerie|disturbing|watching you|spooky|monster\w*|shadow\w*)\b")
+L_NERVOUS = R(r"\b(nervous|awkward|embarrass\w+|shy|blush\w*|oops|sorry|apolog\w+|uncomfortable|cringe|yikes|mistake)\b")
+L_PAIN = R(r"\b(ouch|painful|hurts?|injur\w+|crash\w*|slip\w*|sting\w*|broken|bruise\w*)\b")
+L_PROUD = R(r"\b(proud|achiev\w+|accomplish\w*|victory|champion|winner|nailed|mastered|finally did|success|conquer\w*|crushed it)\b")
+L_PLAN = R(r"\b(scheme\w*|sneaky|secretly|mischie\w+|cunning|outsmart\w*|trap)\b")
+L_YUM = R(r"\b(delicious|tasty|yummy|eat\w*|food|cake|pizza|chocolate|sweets?|snack\w*|hungry|coffee|dinner|lunch|breakfast)\b")
+L_DETERMINED = R(r"\b(determin\w+|never give up|keep going|push\w* through|fight\w*|challenge\w*|discipline|commit\w*|focus\w*|grind\w*|work hard|effort|persist\w*)\b")
+L_STOP = R(r"\b(stop|don.t do|never do|avoid|warning|careful|wait a second|hold on)\b")
 L_PEOPLEISH = R(r"\b(he|she|man|woman|people|person|friend|guy|girl|boy|someone|you|we|they|boss|doctor|teacher|mother|father|kids?|child\w*)\b")
 
 QSTOP = set("""a an the and or of to in on at for with by from as is are was were be been being it its this that these those you your i me my we our
@@ -135,34 +149,62 @@ def clause_items(txt, limit=3):
 
 
 def read_mood(txt, f, first_overall, rng, i):
-    """-> (face, pose, accents). pose 'point' is resolved to point_r / point_l by the caller."""
+    """-> (face, pose, accents). pose 'point' is resolved to point_r / point_l by the caller.
+    About 30 feelings: each has a few (face, pose, accent) looks to choose from so repeats do not look the same."""
     t = txt.strip()
-    face, pose, acc = None, None, []
+    C = lambda *opts: rng.choice(opts)
     if first_overall and L_INTRO.search(t):
         return "happy", "wave", ["spark"]
     if t.endswith("?") or f.get("hook"):
-        face, pose, acc = "curious", "think", ["q"]
-    elif L_SLEEP.search(t):
-        face, pose, acc = "sleepy", "slump", ["zzz"]
-    elif L_ANGRY.search(t):
-        face, pose, acc = "angry", "cross", ["anger"]
-    elif L_WORRY.search(t):
-        face, pose, acc = "worried", "head", ["sweat"]
-    elif L_SHOCK.search(t) or t.endswith("!"):
-        face, pose, acc = "shocked", rng.choice(["cheer", "shrug"]), ["ex"]
-    elif L_IDEA.search(t) and rng.random() < 0.7:
-        face, pose, acc = "excited", "idea", ["bulb"]
-    elif L_SMUG.search(t):
-        face, pose, acc = "smug", "cross", []
-    elif L_SHRUG.search(t):
-        face, pose, acc = "neutral", "shrug", []
-    elif L_LOOK.search(t) and rng.random() < 0.8:
-        face, pose, acc = "smile", rng.choice(["magnify", "pen"]), []
-    elif L_HAPPY.search(t):
-        face, pose, acc = "happy", rng.choice(["cheer", "talk_a", "talk_b"]), ["spark"] if rng.random() < 0.4 else []
-    else:
-        face, pose = FACE_DEFAULTS[i % len(FACE_DEFAULTS)]
-    return face, pose, acc
+        return C(("curious", "think", ["q"]), ("confused", "head", ["q"]), ("curious", "think_l", ["q"]))
+    if L_SLEEP.search(t):
+        return C(("sleepy", "slump", ["zzz"]), ("bored", "slump", ["zzz"]))
+    if L_CREEPY.search(t):
+        return C(("creepy", "rest", ["gloom"]), ("terrified", "shake", ["sweat"]), ("nervous", "hands_up", ["sweat"]))
+    if L_PAIN.search(t):
+        return C(("pained", "shake", ["ex"]), ("crying", "sob", []), ("pained", "head", ["ex"]))
+    if L_SAD.search(t):
+        return C(("crying", "sob", ["gloom"]), ("teary", "heart", ["gloom"]), ("sad", "slump", ["gloom"]))
+    if L_ANGRY.search(t):
+        return C(("angry", "cross", ["anger"]), ("grumpy", "hips", ["anger"]), ("angry", "fist", ["anger"]))
+    if L_NERVOUS.search(t):
+        return C(("embarrassed", "shy", ["sweat"]), ("awkward", "shy", ["dots"]), ("nervous", "shake", ["sweat"]))
+    if L_WORRY.search(t):
+        return C(("worried", "head", ["sweat"]), ("nervous", "shake", ["sweat"]), ("worried", "facepalm", []))
+    if L_DIZZY.search(t):
+        return C(("dizzy", "head", ["q"]), ("confused", "shrug", ["q"]), ("dizzy", "hands_up", []))
+    if L_LAUGH.search(t):
+        return C(("laughing", "clap", ["ha"]), ("laughing", "hips", ["ha"]), ("cheeky", "talk_a", ["spark"]))
+    if L_LOVE.search(t):
+        return C(("lovestruck", "heart", ["heart"]), ("dreamy", "shy", ["heart"]), ("lovestruck", "gasp_hands", ["heart"]))
+    if L_AWE.search(t):
+        return C(("starry", "gasp_hands", ["star"]), ("inspired", "cheer", ["spark"]), ("starry", "clap", ["star"]))
+    if L_SHOCK.search(t) or t.endswith("!"):
+        return C(("gasp", "gasp_hands", ["ex"]), ("shocked", "shrug", ["ex"]), ("terrified", "hands_up", ["ex"]), ("gasp", "cheer", ["ex"]))
+    if L_PROUD.search(t):
+        return C(("proud", "hips", ["spark"]), ("proud", "fist", ["star"]), ("happy", "cheer", ["spark"]))
+    if L_PLAN.search(t):
+        return C(("scheming", "cross", []), ("scheming", "pen", []), ("cheeky", "idea", ["bulb"]))
+    if L_STOP.search(t):
+        return C(("determined", "stop", ["ex"]), ("worried", "stop", []))
+    if L_YUM.search(t):
+        return C(("yum", "talk_a", ["spark"]), ("happy", "heart", ["spark"]))
+    if L_DETERMINED.search(t):
+        return C(("determined", "fist", ["spark"]), ("determined", "hips", []))
+    if L_BORED.search(t):
+        return C(("bored", "relax", ["dots"]), ("deadpan", "shrug", ["dots"]), ("bored", "cross", []))
+    if L_IDEA.search(t) and rng.random() < 0.7:
+        return C(("excited", "idea", ["bulb"]), ("inspired", "idea", ["bulb"]))
+    if L_SMUG.search(t):
+        return C(("smug", "cross", []), ("scheming", "cross", []), ("deadpan", "shrug", []))
+    if L_SHRUG.search(t):
+        return C(("neutral", "shrug", []), ("awkward", "shrug", ["dots"]), ("confused", "shrug", ["q"]))
+    if L_LOOK.search(t) and rng.random() < 0.8:
+        return C(("smile", "magnify", []), ("smile", "pen", []), ("curious", "magnify", []))
+    if L_HAPPY.search(t):
+        return C(("happy", "cheer", ["spark"]), ("happy", "talk_a", []), ("proud", "talk_b", []), ("happy", "dance", ["note"]))
+    face, pose = FACE_DEFAULTS[i % len(FACE_DEFAULTS)]
+    return face, pose, []
 
 
 def _pick(rng, items, weights, avoid=None):
@@ -281,15 +323,15 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
                 pose = "point_r"
             if pose == "talk_b" and st["pose"] == "talk_b":
                 pose = "talk_a"
-            if pose == st["pose"] and pose in ("cross", "head", "slump", "think") and rng.random() < 0.5:
+            if pose == st["pose"] and pose in ("cross", "head", "slump", "think", "shy", "sob", "hips", "heart", "shake") and rng.random() < 0.5:
                 pose = "talk_a" if rng.random() < 0.5 else "present"      # do not freeze in one pose for a whole paragraph
             yuki_side = "l" if side == "r" else "r"
             if layout in ("title", "icons", "stat"):
                 yuki_side = "l" if (side == "r") else "r"
             flip = yuki_side == "r"
             gaze = 1 if (side == "r") else -1
-            tilt = {"curious": 5, "worried": -4, "smug": 4, "sleepy": -5}.get(face, 2.5 if bi % 2 else -2.5) * (-1 if flip else 1)
-            hop = face in ("shocked", "excited") or first or (bool(acc) and "spark" in acc)
+            tilt = {"curious": 5, "worried": -4, "smug": 4, "sleepy": -5, "confused": 7, "dizzy": -7, "crying": -4, "starry": 3, "scheming": 5, "dreamy": -5, "embarrassed": -6, "awkward": 4}.get(face, 2.5 if bi % 2 else -2.5) * (-1 if flip else 1)
+            hop = face in ("shocked", "excited", "gasp", "starry", "laughing", "inspired", "proud") or first or (bool(acc) and "spark" in acc)
             kb = dict(z0=1.0, z1=1.0 + rng.uniform(0.05, 0.10), dx=rng.uniform(-0.5, 0.5), dy=rng.uniform(-0.4, 0.4))
             if rng.random() < 0.4:
                 kb["z0"], kb["z1"] = kb["z1"], kb["z0"]

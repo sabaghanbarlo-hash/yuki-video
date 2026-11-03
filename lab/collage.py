@@ -162,6 +162,40 @@ def accent_img(kind, size):
         for (cx, cy, r) in ((40, 58, 26), (74, 28, 17), (20, 22, 11)):
             pts = [(cx, cy - r), (cx + r * .25, cy - r * .25), (cx + r, cy), (cx + r * .25, cy + r * .25), (cx, cy + r), (cx - r * .25, cy + r * .25), (cx - r, cy), (cx - r * .25, cy - r * .25)]
             d.polygon([(x * u, y * u) for x, y in pts], fill=(255, 205, 70, 255))
+    elif kind == "heart":
+        for (cx, cy, r) in ((40, 60, 24), (72, 30, 15)):
+            col = (240, 90, 126, 255)
+            d.ellipse(((cx - r) * u, (cy - r * 0.9) * u, cx * u, (cy + r * 0.1) * u), fill=col)
+            d.ellipse((cx * u, (cy - r * 0.9) * u, (cx + r) * u, (cy + r * 0.1) * u), fill=col)
+            d.polygon([((cx - r * 0.97) * u, (cy - r * 0.2) * u), ((cx + r * 0.97) * u, (cy - r * 0.2) * u), (cx * u, (cy + r * 1.05) * u)], fill=col)
+    elif kind == "dots":                                                   # speechless  ...
+        d.rounded_rectangle((8 * u, 26 * u, 92 * u, 66 * u), radius=14 * u, fill=(246, 244, 236, 255), outline=(70, 66, 80, 255), width=int(3 * u))
+        d.polygon([(26 * u, 64 * u), (24 * u, 84 * u), (44 * u, 64 * u)], fill=(246, 244, 236, 255))
+        for cx in (30, 50, 70):
+            d.ellipse(((cx - 6) * u, 40 * u, (cx + 6) * u, 52 * u), fill=(70, 66, 80, 255))
+    elif kind == "ha":                                                     # laughing
+        f = font(int(34 * u), "bold")
+        for (tx, ty, a) in (("HA", 6, 20), ("HA", 30, 52)):
+            pass
+        d.text((6 * u, 14 * u), "HA", font=f, fill=(244, 160, 50, 255))
+        d.text((30 * u, 52 * u), "HA", font=f, fill=(238, 110, 60, 255))
+    elif kind == "gloom":                                                  # dark mood lines
+        for x in (20, 36, 52, 68, 84):
+            d.line([(x * u, 8 * u), (x * u, (46 + (x % 3) * 14) * u)], fill=(86, 92, 150, 255), width=int(6 * u))
+    elif kind == "note":
+        col = (96, 120, 220, 255)
+        for (cx, cy) in ((34, 70), (68, 54)):
+            d.ellipse(((cx - 13) * u, (cy - 9) * u, (cx + 11) * u, (cy + 9) * u), fill=col)
+            d.line([((cx + 9) * u, cy * u), ((cx + 9) * u, (cy - 42) * u)], fill=col, width=int(5 * u))
+        d.line([(43 * u, 28 * u), (77 * u, 12 * u)], fill=col, width=int(9 * u))
+    elif kind == "star":
+        for (cx, cy, r) in ((34, 60, 24), (72, 28, 16)):
+            pts = []
+            for i_ in range(10):
+                rr = r if i_ % 2 == 0 else r * 0.45
+                a = math.radians(-90 + i_ * 36)
+                pts.append(((cx + rr * math.cos(a)) * u, (cy + rr * math.sin(a)) * u))
+            d.polygon(pts, fill=(255, 205, 70, 255))
     elif kind == "bulb":
         d.ellipse((28 * u, 10 * u, 72 * u, 54 * u), fill=(255, 220, 90, 255))
         d.rounded_rectangle((38 * u, 50 * u, 62 * u, 74 * u), radius=4 * u, fill=(190, 190, 200, 255))

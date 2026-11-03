@@ -130,7 +130,7 @@ LASH = (56, 36, 46)
 CLIP, CLIP_C = (214, 72, 78), (252, 232, 208)
 
 
-def head_base(mouth, eyes, brow, gaze, look=YUKI):
+def head_base(mouth, eyes, brow, gaze, look=YUKI, cover=None):
     """Smooth flat chibi head built like the Tiny Japanese characters: one soft bell of hair, wide round face,
     scalloped fringe, flat oval eyes with two light dots, round blush, tiny smile. No outlines.
     mouth 0..4, eyes 'open'|'blink'|'happy'|'wide', brow 'neutral'|'raised'|'worried'|'happy', gaze -1..1"""
@@ -198,6 +198,58 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
             d.line([tuple(P(*p)) for p in ((xo, lid + droop), (xi, lid))], fill=LASH, width=5 * SS)
             if eyes == "sleepy":                                       # tired bags under the eyes
                 _ell(d, (ex - 22, ey + 30, ex + 22, ey + 44), SKIN_SH, None)
+        elif eyes == "tears":                                                 # wet eyes + streaming tears
+            _ell(d, (ex - 24, ey - 30, ex + 24, ey + 34), EYE, None)
+            _ell(d, (ex - 17, ey - 24, ex + 3, ey - 4), (255, 255, 255), None)
+            _ell(d, (ex - 4, ey + 6, ex + 18, ey + 24), (170, 220, 255), None)
+            for k_ in (0, 1):
+                tx = ex + (-1 if cx_ < 200 else 1) * (20 + k_ * 3)
+                _ell(d, (tx - 7, ey + 26 + k_ * 20, tx + 7, ey + 52 + k_ * 20), (140, 206, 255), None)
+            d.line([tuple(P(*q)) for q in ((ex - 28, ey - 40), (ex + 28, ey - 30))] if cx_ < 200 else [tuple(P(*q)) for q in ((ex - 28, ey - 30), (ex + 28, ey - 40))], fill=LASH, width=4 * SS)
+        elif eyes == "sparkle":                                               # starstruck: big eyes full of stars
+            _ell(d, (ex - 27, ey - 36, ex + 27, ey + 36), EYE, None)
+            for (sx_, sy_, r_) in ((ex - 6, ey - 10, 15), (ex + 11, ey + 14, 8)):
+                pts = []
+                for i_ in range(8):
+                    rr = r_ if i_ % 2 == 0 else r_ * 0.38
+                    ang = math.radians(-90 + i_ * 45)
+                    pts.append(P(sx_ + rr * math.cos(ang), sy_ + rr * math.sin(ang)))
+                d.polygon([tuple(q) for q in pts], fill=(255, 255, 255))
+        elif eyes == "heart":
+            for hx_, hy_, r_ in ((ex, ey, 27),):
+                _ell(d, (hx_ - r_, hy_ - r_ * 0.85, hx_, hy_ + r_ * 0.15), (240, 84, 120), None)
+                _ell(d, (hx_, hy_ - r_ * 0.85, hx_ + r_, hy_ + r_ * 0.15), (240, 84, 120), None)
+                d.polygon([tuple(P(*q)) for q in ((hx_ - r_ * 0.98, hy_ - r_ * 0.2), (hx_ + r_ * 0.98, hy_ - r_ * 0.2), (hx_, hy_ + r_ * 1.05))], fill=(240, 84, 120))
+                _ell(d, (hx_ - r_ * 0.6, hy_ - r_ * 0.6, hx_ - r_ * 0.2, hy_ - r_ * 0.25), (255, 255, 255), None)
+        elif eyes == "swirl":                                                 # dizzy spirals
+            _ell(d, (ex - 26, ey - 30, ex + 26, ey + 30), (250, 250, 250), None)
+            pts = [P(ex + (0.7 + t_ * 0.9) * math.cos(t_ * 6.8) * 2.0 * 1.0, ey + (0.7 + t_ * 0.9) * math.sin(t_ * 6.8) * 2.0) for t_ in [i / 60 for i in range(61)]]
+            pts = [P(ex + (3 + t_ * 22) * math.cos(t_ * 17), ey + (3 + t_ * 22) * math.sin(t_ * 17)) for t_ in [i / 70 for i in range(71)]]
+            d.line([tuple(q) for q in pts], fill=EYE, width=4 * SS)
+        elif eyes == "dot":                                                   # deadpan: tiny dot eyes
+            _ell(d, (ex - 8, ey - 8, ex + 8, ey + 8), EYE, None)
+        elif eyes == "tiny":                                                  # shock: huge white eyes, tiny pupils
+            _ell(d, (ex - 28, ey - 38, ex + 28, ey + 38), (252, 252, 252), None)
+            _ell(d, (ex - 12 + gaze * 3, ey - 12, ex + 12 + gaze * 3, ey + 12), EYE, None)
+        elif eyes == "lines":                                                 # > <  squeezed shut (laughing, pain)
+            sg = 1 if cx_ < 200 else -1
+            d.line([tuple(P(*q)) for q in ((ex - 22 * sg, ey - 18), (ex + 18 * sg, ey), (ex - 22 * sg, ey + 18))], fill=LASH, width=6 * SS)
+        elif eyes == "wink":
+            if cx_ < 200:
+                d.arc(P(ex - 24, ey - 8, ex + 24, ey + 20), 205, 335, fill=LASH, width=6 * SS)
+            else:
+                _ell(d, (ex - 24, ey - 32, ex + 24, ey + 32), EYE, None)
+                _ell(d, (ex - 16, ey - 26, ex + 2, ey - 7), (255, 255, 255), None)
+                _ell(d, (ex + 6, ey + 9, ex + 18, ey + 21), (255, 255, 255), None)
+        elif eyes == "dead":                                                  # creepy: no light in the eyes
+            _ell(d, (ex - 24, ey - 32, ex + 24, ey + 32), (26, 26, 36), None)
+        elif eyes == "shy":                                                   # looking away, a bit smaller
+            _ell(d, (ex - 20 + 6, ey - 26, ex + 20 + 6, ey + 28), EYE, None)
+            _ell(d, (ex - 12 + 6, ey - 20, ex + 2 + 6, ey - 4), (255, 255, 255), None)
+            _ell(d, (ex + 8, ey + 6, ex + 18, ey + 16), (255, 255, 255), None)
+            for k_ in range(3):
+                x0 = (123 if cx_ < 200 else 277) - 18 + k_ * 14
+                d.line([tuple(P(x0, 252)), tuple(P(x0 + 6, 266))], fill=(238, 120, 130), width=3 * SS)
         elif eyes == "blink":
             d.arc(P(ex - 24, ey - 12, ex + 24, ey + 12), 25, 155, fill=LASH, width=5 * SS)
         elif eyes == "happy":
@@ -221,11 +273,43 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI):
     elif mouth == 5:                                                   # smirk
         d.arc(P(mx - 6, my - 12, mx + 22, my + 4), 20, 150, fill=MC, width=3 * SS)
         d.line([tuple(P(*p)) for p in ((mx - 12, my - 2), (mx - 6, my - 1))], fill=MC, width=3 * SS)
+    elif mouth == 7:                                                   # gasp: round open "o"
+        _ell(d, (mx - 14, my - 12, mx + 14, my + 22), MOUTH_IN, None)
+        _ell(d, (mx - 8, my + 6, mx + 8, my + 20), TONGUE, None)
+    elif mouth == 8:                                                   # wobbly (nervous, confused, awkward)
+        d.line([tuple(P(*q)) for q in ((mx - 18, my + 2), (mx - 9, my - 5), (mx, my + 3), (mx + 9, my - 5), (mx + 18, my + 2))], fill=MC, width=3 * SS)
+    elif mouth == 9:                                                   # big laugh
+        d.pieslice(P(mx - 26, my - 22, mx + 26, my + 24), 0, 180, fill=MOUTH_IN)
+        d.pieslice(P(mx - 15, my - 2, mx + 15, my + 22), 0, 180, fill=TONGUE)
+        d.rectangle(P(mx - 24, my - 4, mx + 24, my + 1), fill=(255, 255, 255))
+    elif mouth == 10:                                                  # cat mouth  :3
+        d.arc(P(mx - 20, my - 14, mx, my + 6), 10, 170, fill=MC, width=3 * SS)
+        d.arc(P(mx, my - 14, mx + 20, my + 6), 10, 170, fill=MC, width=3 * SS)
+    elif mouth == 11:                                                  # frown
+        d.arc(P(mx - 16, my - 2, mx + 16, my + 20), 205, 335, fill=MC, width=4 * SS)
+    elif mouth == 12:                                                  # tongue out
+        d.arc(P(mx - 16, my - 12, mx + 16, my + 4), 25, 155, fill=MC, width=3 * SS)
+        _round(d, (mx - 3, my - 2, mx + 14, my + 22), 8, TONGUE, None)
+    elif mouth == 13:                                                  # grit teeth
+        _round(d, (mx - 18, my - 8, mx + 18, my + 12), 5, (255, 255, 255), MC, 3 * SS)
+        d.line([tuple(P(*q)) for q in ((mx - 18, my + 2), (mx + 18, my + 2))], fill=MC, width=2 * SS)
+        for k_ in (-9, 0, 9):
+            d.line([tuple(P(mx + k_, my - 8)), tuple(P(mx + k_, my + 12))], fill=MC, width=2 * SS)
+    elif mouth == 14:                                                  # sobbing: wide wobbly open
+        _ell(d, (mx - 16, my - 6, mx + 16, my + 20), MOUTH_IN, None)
+        d.arc(P(mx - 12, my + 4, mx + 12, my + 22), 200, 340, fill=TONGUE, width=5 * SS)
     elif mouth == 6:                                                   # flat / unimpressed
         d.line([tuple(P(*p)) for p in ((mx - 12, my + 2), (mx + 12, my + 2))], fill=MC, width=3 * SS)
     else:  # 4: happy open smile
         d.pieslice(P(mx - 16, my - 11, mx + 16, my + 14), 0, 180, fill=MOUTH_IN)
         d.pieslice(P(mx - 9, my + 1, mx + 9, my + 13), 0, 180, fill=TONGUE)
+    if cover:                                                          # hands pressed over the eyes (facepalm / sobbing)
+        spots = ((143, 232), (257, 232)) if cover == "both" else ((236, 226),)
+        for hx_, hy_ in spots:
+            _ell(d, (hx_ - 50, hy_ - 44, hx_ + 50, hy_ + 52), tuple(max(0, c - 16) for c in look.skin), None)
+            _ell(d, (hx_ - 44, hy_ - 40, hx_ + 44, hy_ + 44), look.skin, None)
+            for fx in (-30, -10, 10, 30):
+                d.line([tuple(P(hx_ + fx, hy_ - 36)), tuple(P(hx_ + fx, hy_ - 8))], fill=tuple(max(0, c - 22) for c in look.skin), width=3 * SS)
     return im
 
 
@@ -328,8 +412,8 @@ def arm_small(side, a_q, b_q, s, look=YUKI):
 
 
 @functools.lru_cache(maxsize=900)
-def head_small(mouth, eyes, brow, gaze, s, look=YUKI):
-    return _small(head_base(mouth, eyes, brow, gaze, look), s)
+def head_small(mouth, eyes, brow, gaze, s, look=YUKI, cover=None):
+    return _small(head_base(mouth, eyes, brow, gaze, look, cover), s)
 
 
 # ------------------------------------------------------------------ poses
@@ -357,7 +441,24 @@ POSES = {
     "think_l":  dict(L=(-12, -152), R=(-6, -58), front=True),
     "slump":    dict(L=(4, -8), R=(4, -8)),                               # tired, arms hanging
 }
+POSES.update({
+    "facepalm":   dict(L=(-6, -58), R=(-8, -104), front=True),                 # (the hand over the face is drawn on the head)
+    "sob":        dict(L=(-8, -100), R=(-8, -100), front=True),
+    "clap":       dict(L=(-10, -110), R=(-10, -110), front=True),
+    "hands_up":   dict(L=(96, 142), R=(96, 142)),                              # "don't shoot" / surprised
+    "shy":        dict(L=(-4, -32), R=(-4, -32), front=True),                  # hands together, fidgeting
+    "stop":       dict(L=(-6, -58), R=(74, 152)),
+    "hips":       dict(L=(42, -26), R=(42, -26)),
+    "heart":      dict(L=(-8, -132), R=(-8, -132), front=True),                # hands on the chest
+    "dance":      dict(L=(120, 150), R=(120, 150)),
+    "shake":      dict(L=(4, -44), R=(4, -44), front=True),                    # trembling, arms tight
+    "gasp_hands": dict(L=(66, 168), R=(66, 168), front=True),                  # both hands up beside the face
+    "fist":       dict(L=(-6, -58), R=(34, -168), front=True),
+    "wave_both":  dict(L=(62, 168), R=(62, 168)),
+    "bow":        dict(L=(-4, -38), R=(-4, -38), front=True),
+})
 PROPS = {"pen": ("R", "pen"), "magnify": ("R", "magnify")}
+COVER = {"facepalm": "one", "sob": "both"}
 
 
 class Rig:
@@ -483,6 +584,17 @@ FACES = {   # face -> (eyes, brow, closed-mouth shape, open-smile when talking l
     "shocked": ("wide", "neutral", 2), "curious": ("wide", "raised", 3), "angry": ("open", "angry", 0), "sleepy": ("sleepy", "neutral", 6),
     "smug": ("smug", "neutral", 5), "serene": ("blink", "neutral", 0), "sad": ("open", "sad", 0), "excited": ("wide", "raised", 0),
 }
+FACES.update({
+    "laughing":    ("lines", "happy", 9),   "crying":      ("tears", "sad", 14),      "teary":      ("tears", "sad", 11),
+    "starry":      ("sparkle", "happy", 4), "lovestruck":  ("heart", "happy", 4),     "dizzy":      ("swirl", "neutral", 8),
+    "deadpan":     ("dot", "neutral", 6),   "nervous":     ("wide", "sad", 8),        "gasp":       ("tiny", "raised", 7),
+    "terrified":   ("tiny", "sad", 13),     "cheeky":      ("wink", "happy", 12),     "scheming":   ("smug", "happy", 10),
+    "proud":       ("happy", "happy", 10),  "pained":      ("lines", "sad", 13),      "creepy":     ("dead", "neutral", 0),
+    "determined":  ("open", "angry", 5),    "confused":    ("open", "raised", 8),     "awkward":    ("dot", "sad", 8),
+    "embarrassed": ("shy", "sad", 8),       "inspired":    ("sparkle", "raised", 4),  "bored":      ("dot", "neutral", 6),
+    "grumpy":      ("open", "angry", 11),   "dreamy":      ("blink", "happy", 10),    "yum":        ("happy", "happy", 12),
+})
+LOCK_MOUTH = {"laughing", "crying", "teary", "gasp", "terrified", "pained", "nervous", "awkward", "embarrassed", "cheeky", "yum"}   # keep their own mouth while talking
 TALK_SHAPE = {0: None, 1: 3, 2: 1, 3: 2}
 
 
@@ -498,7 +610,17 @@ def pose_arms(pose, t, wiggle=1.0):
         a, b = P[sd]
         if pose == "wave" and sd == "R":
             b += 14 * math.sin(t * 7.5)
-        if pose in ("talk_a", "talk_b", "present", "shrug", "pen", "magnify"):
+        if pose == "clap":
+            b += 17 * math.sin(t * 13) ; a += 5 * math.sin(t * 13)
+        elif pose == "dance":
+            a += 16 * math.sin(t * 6 + (0 if sd == "L" else math.pi)); b += 14 * math.sin(t * 6 + (0 if sd == "L" else math.pi))
+        elif pose == "shake":
+            a += 3 * math.sin(t * 34 + (0 if sd == "L" else 1.3)); b += 3 * math.sin(t * 29)
+        elif pose == "wave_both":
+            b += 14 * math.sin(t * 7.5 + (0 if sd == "L" else 1.6))
+        elif pose in ("shy", "sob"):
+            b += 6 * math.sin(t * 5.2 + (0 if sd == "L" else 0.9))
+        if pose in ("talk_a", "talk_b", "present", "shrug", "pen", "magnify", "hands_up", "stop", "hips", "gasp_hands"):
             ph = 0.0 if sd == "L" else 1.9
             a += wiggle * 6 * (math.sin(t * 2.3 + ph) + 0.6 * math.sin(t * 4.1 + ph * 2))
             b += wiggle * 9 * (math.sin(t * 1.9 + ph + 0.8) + 0.5 * math.sin(t * 3.7 + ph))
@@ -539,12 +661,16 @@ def draw_figure(frame, x, floor_y, s, pose="rest", prev_pose=None, blend=1.0, t=
     # blinking on a fixed schedule (slow when sleepy)
     per = 5.2 if face == "sleepy" else 3.3
     blink = ((t + 0.9) % per) < (0.22 if face == "sleepy" else 0.13)
-    if blink and eyes in ("open", "wide", "sleepy", "smug"):
+    if blink and eyes in ("open", "wide", "sleepy", "smug", "dot", "dead"):
         eyes = "blink"
     q = 0 if amp < 0.11 else 1 if amp < 0.34 else 2 if amp < 0.66 else 3
     mouth = closed if q == 0 else TALK_SHAPE[q]
     if q == 3 and face in ("happy", "smile", "excited"):
         mouth = 4
+    if face in LOCK_MOUTH and q:
+        mouth = closed
+        if face in ("crying", "laughing", "gasp") and q == 1:
+            mouth = 1
     if q and face == "smug" and q < 3:
         mouth = 1
     sway = max(-4, min(4, int(round(2.4 * math.sin(t * 2.2)))))
@@ -581,7 +707,7 @@ def draw_figure(frame, x, floor_y, s, pose="rest", prev_pose=None, blend=1.0, t=
     if not front:
         for sd, a, b in arm_list:
             paste_arm(sd, a, b)
-    hs = head_small(int(mouth), eyes, brow, gq, s, look)
+    hs = head_small(int(mouth), eyes, brow, gq, s, look, COVER.get(pose) if (blend >= 0.5 or not prev_pose) else COVER.get(prev_pose))
     pad = int(60 * s)
     hc = Image.new("RGBA", (hs.width + 2 * pad, hs.height + 2 * pad), (0, 0, 0, 0))
     hc.alpha_composite(hs, (pad, pad))
