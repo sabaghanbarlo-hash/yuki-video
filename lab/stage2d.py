@@ -156,6 +156,8 @@ class Stage2D:
                 self._char(a, lt, shot, dur, pop, cam, fg, mouth, t_abs)
             elif k == "creature":
                 self._creature(a, lt, dur, pop, cam, fg, t_abs)
+            elif k == "icon":
+                self._icon(a, lt, p, pop, cam, over, t_abs, out_p)
             elif k == "spark":
                 x, y = to_screen(a["x"] * W + math.sin(t_abs * 0.7 + a["seed"]) * 18, a["y"] * H + math.cos(t_abs * 0.5 + a["seed"]) * 14, cam)
                 s = a["size"] * pop * cz * (0.7 + 0.3 * math.sin(t_abs * 3 + a["seed"]))
@@ -196,6 +198,17 @@ class Stage2D:
                 im = O.outlined("?", int(a["size"] * pop * cz) + 4, ACC[0], (24, 22, 50), weight="bold")
                 fg.glow(x, y, 240 * pop, pal["a1"], 0.35)
                 over.append((im, x - im.width / 2, y - im.height / 2, 1.0))
+
+    # ---- icons: a cartoon picture of a thing the narrator names, popping up as it is said
+    def _icon(self, a, lt, p, pop, cam, over, t_abs, out_p):
+        from .icons import sticker
+        sz = int(a["size"] * pop * cam[2])
+        if sz < 8:
+            return
+        sz = max(16, int(round(sz / 8.0)) * 8)
+        x, y = to_screen(a["x"] * W + math.cos(t_abs * 0.9 + a["seed"]) * 5, a["y"] * H + math.sin(t_abs * 1.4 + a["seed"]) * 9, cam)
+        im = sticker(a["hex"], sz, a.get("rot", 0))
+        over.append((im, x - im.width / 2, y - im.height / 2, min(1.0, p * 2.0) * (1 - out_p)))
 
     # ---- entities
     def _entity(self, a, lt, p, pop, cam, fg, over, t_abs):

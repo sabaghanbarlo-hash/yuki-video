@@ -104,3 +104,9 @@ Free AI picture services now refuse anonymous requests, and loosely matched stoc
 your own `media/` files -> an AI picture if the service answers -> otherwise **the lab draws the picture from the beat's own words**:
 the place (bedroom, office, kitchen, gym, classroom, park, street, beach, space, lab ...), the things named (bed, phone, calendar, target, ladder, brain, planet ... ~90 drawings)
 and simple cartoon people acting out the line. A memory of the last pictures keeps consecutive beats different. `--media stock` still fetches free-licence photos if you want them.
+
+## Icons for the things the narrator names
+
+Every noun/verb in a beat that has a picture (~1,370 icons: bed, brain, phone, calendar, trophy, stressed face ...) pops up as a sticker at the moment it is said,
+next to the cartoon person acting the line. Icons are Twemoji graphics (CC-BY 4.0, credit added to the `.credits.txt` / YouTube description automatically) with Emojibase keywords (MIT).
+Rebuild/extend the pack with `tools/build_icons.py`. The page colour is `#F6E2C8` (`PAPER` in `lab/collage.py`).

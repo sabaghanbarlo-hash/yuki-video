@@ -11,6 +11,7 @@ plan_picture() returns a plain dict (a "recipe"), so rendering later is stateles
 import re
 from . import knowledge as K
 from . import props                       # noqa: F401  (registers the extra drawings)
+from . import icons as IC
 
 R = lambda p: re.compile(p, re.I)
 
@@ -91,7 +92,7 @@ def _pick_unused(rng, options, recent, k=3):
 
 
 def new_memory():
-    return dict(envs=[], ents=[], tpls=[], roles=[], acts=[], n=0)
+    return dict(envs=[], ents=[], tpls=[], roles=[], acts=[], icons=[], n=0)
 
 
 def choose_env(txt, topic, rng, mem, f):
@@ -158,12 +159,23 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
     named = [e for e in ents if e[0] not in ("person", "crowd")]
     fresh = [e for e in named if e[0] not in mem["ents"][-2:]]
     shown = (fresh or named)[:2]
+    ics = IC.find(txt, 6)                                      # a cartoon icon for each thing named, in the order it is said
+    if len(ics) > 1:
+        fresh_i = [i for i in ics if i[0] not in mem["icons"][-3:]]
+        ics = fresh_i if fresh_i else ics
+    ics = ics[:3]
+    if ics:
+        shown = []                                             # the icons carry the meaning; no extra vector drawing
     many = bool(PEOPLE_MANY.search(txt)) or any(e[0] == "crowd" for e in ents)
     two = bool(PEOPLE_TWO.search(txt)) and not many
 
     # ---- layout of the picture
     tpls = []
-    if shown:
+    if ics:
+        tpls = ["pointing", "solo", "showcase", "reaction"] if not many else ["crowd", "pointing", "solo"]
+        if f["hook"] or action == "think":
+            tpls = ["reaction", "pointing", "solo"]
+    elif shown:
         tpls = ["showcase", "pointing", "solo", "duo"] if not many else ["crowd", "showcase", "pointing"]
         if f["hook"] or action == "think":
             tpls = ["reaction", "showcase", "solo"]
@@ -198,9 +210,9 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
             x = 0.16 + 0.68 * (i + rng.uniform(-0.1, 0.1)) / max(1, n - 1)
             char(rng.choice(["citizen", "kid", "teacher", "scientist", "engineer", "explorer"]), x, action if i == 0 else rng.choice(acts), 0.9 + 0.2 * (i % 2), facing=1 if x < 0.5 else -1, fin=0.04 * i)
     elif tpl == "reaction":
-        char(role, 0.5 if not shown else 0.3, action, 2.1 if not shown else 1.7, expr_=expr)
+        char(role, 0.5 if not (shown or ics) else 0.2, action, 2.1 if not (shown or ics) else 1.5, expr_=expr)
     elif tpl == "showcase":
-        x = rng.choice([0.2, 0.8])
+        x = rng.choice([0.14, 0.86]) if ics else rng.choice([0.2, 0.8])
         char(role, x, action if action not in ("walk", "run") else "point", 1.2, facing=1 if x < 0.5 else -1)
     elif tpl == "pointing":
         x = rng.choice([0.25, 0.75])
@@ -224,6 +236,22 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
             size = int(size * 0.9)
         actors.append(dict(k="entity", name=nm, x=side, y=y, size=size, f_in=max(0.0, p * 0.5), motion="float", entry=rng.choice(["pop", "rise", "grow"]), label=lab,
                            seed=rng.randrange(99), holo=nm not in SKY and tpl != "showcase"))
+    if ics:
+        cx = actors[0]["x"] if actors else 0.5
+        lo, hi = (0.40, 0.92) if cx < 0.5 else (0.08, 0.60)
+        if tpl == "crowd":
+            lo, hi = 0.1, 0.9
+        n = len(ics)
+        size = {1: 520, 2: 390, 3: 320}[n]
+        cmp_ = bool(K.COMPARE.search(txt)) and n >= 2
+        for k, (hx, lab, w, pos) in enumerate(ics):
+            x = (lo + hi) / 2 if n == 1 else lo + (hi - lo) * (k + 0.5) / n
+            y = 0.40 + (0.07 if (n == 3 and k % 2) else -0.05 if n == 3 else 0.0)
+            actors.append(dict(k="icon", hex=hx, x=x, y=y, size=size, f_in=max(0.04, min(0.8, pos * 0.9)), seed=rng.randrange(99), rot=rng.choice([-6, -3, 3, 6]), label=lab))
+            if cmp_ and k == 0:
+                actors.append(dict(k="vs", text="VS", x=(lo + hi) / 2, y=0.40, f_in=max(0.1, pos * 0.9)))
+        for hx, *_ in ics:
+            mem["icons"].append(hx)
     if f["nums"] and f["nums"][0]["kind"] in ("count", "percent", "temp", "year"):
         nb = f["nums"][0]
         actors.append(dict(k="stat_small", display=nb["display"], x=0.5, y=0.13, f_in=0.1))
@@ -237,7 +265,7 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
     for e in shown:
         mem["ents"].append(e[0])
     mem["n"] += 1
-    for key in ("envs", "ents", "tpls", "roles", "acts"):
+    for key in ("envs", "ents", "tpls", "roles", "acts", "icons"):
         mem[key] = mem[key][-8:]
     pal = {"bedroom": "dusk", "space": "cosmos", "underwater": "ocean", "cave": "bio", "snow": "ice", "desert": "dusk", "stage": "neon", "lab": "lab", "forest": "forest"}.get(env, "day")
     return dict(env=env, pal=pal, tpl=tpl, actors=actors, cam=cam, mood=mood, topic=topic)

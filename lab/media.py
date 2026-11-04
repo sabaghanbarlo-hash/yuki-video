@@ -243,6 +243,9 @@ def prefetch(plan, mode="auto", cache_dir=".work/media", local_dir="media", budg
                     n_stock += got["source"] in ("wikimedia", "openverse")
                     if got.get("credit"):
                         credits.append(got["credit"])
+    if any(a.get("k") == "icon" for sc in plan["scenes"] for sh in sc["shots"] for d in (sh.get("draw") or []) for a in d["actors"]):
+        from .icons import ATTRIBUTION
+        credits.append(ATTRIBUTION)
     plan["credits"] = sorted(set(credits))
     plan["media_stats"] = dict(total=n_total, found=n_got, ai=n_ai, stock=n_stock, yours=n_own, drawn=n_total - n_got)
     log(f"{n_got}/{n_total} pictures found (AI {n_ai}, stock {n_stock}, yours {n_own}); the other {n_total - n_got} are drawn by the lab")

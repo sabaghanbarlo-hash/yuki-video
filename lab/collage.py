@@ -17,7 +17,7 @@ from . import yuki_rig as Y
 from . import overlays as O
 
 W, H = 1280, 720
-PAPER = (238, 233, 223)
+PAPER = (246, 226, 200)        # the page colour (#F6E2C8)
 INK = (58, 54, 50)
 PANEL_COLOURS = [(188, 208, 62), (240, 160, 64), (96, 176, 204), (232, 112, 122), (156, 136, 214), (250, 206, 84)]
 SHAPE_COLOURS = [(30, 98, 214), (216, 40, 56), (255, 200, 60), (40, 170, 160), (250, 130, 60), (120, 90, 200)]
@@ -39,7 +39,7 @@ def paper():
     base += grain
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     d = np.sqrt(((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
-    base -= (np.clip(d - 0.75, 0, 1) ** 2 * 18.0)[..., None]
+    base -= (np.clip(d - 0.8, 0, 1) ** 2 * 7.0)[..., None]
     return Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
 
 
