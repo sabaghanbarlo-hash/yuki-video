@@ -173,7 +173,7 @@ def get_media(query, mode, w, h, seed, cache_dir, local_dir, want_file=None, sto
     meta = cache_dir / f"{key}.json"
     if cp.exists() and meta.exists():
         return dict(path=str(cp), **json.loads(meta.read_text()))
-    order = {"auto": ("ai", "wikimedia", "openverse"), "ai": ("ai",), "stock": ("wikimedia", "openverse")}.get(mode, ())
+    order = {"auto": ("ai",), "ai": ("ai",), "stock": ("wikimedia", "openverse")}.get(mode, ())      # auto = AI picture, else the lab draws it from the keywords (loose stock photos were off-topic)
     for src in order:
         if src in _DEAD:
             continue
@@ -193,6 +193,8 @@ def get_media(query, mode, w, h, seed, cache_dir, local_dir, want_file=None, sto
         except Exception as e:
             _FAILS[src] = _FAILS.get(src, 0) + 1
             log(f"{src} failed for '{query[:50]}': {type(e).__name__} {e}")
+            if "402" in str(e) or "401" in str(e) or "403" in str(e):         # the service wants payment / a key: stop asking
+                _DEAD.add(src); log(f"{src} refuses requests (needs a key or payment) - the lab draws the pictures instead"); continue
             if _FAILS[src] >= 4 and src not in _OK:                 # the source is unreachable: stop wasting time on it
                 _DEAD.add(src)
                 log(f"{src} looks unreachable here - skipping it from now on")

@@ -97,3 +97,10 @@ unverified app lasts about 7 days; renew it when the upload step reports `invali
 - **Yuki** has ~36 faces and ~34 poses. Script cues: `[face: crying]` `[pose: facepalm]`.
   Faces: neutral smile happy worried shocked curious angry sleepy smug serene sad excited laughing crying teary starry lovestruck dizzy deadpan nervous gasp terrified cheeky scheming proud pained creepy determined confused awkward embarrassed inspired bored grumpy dreamy yum.
   Poses: rest relax talk_a talk_b present point_r point_l shrug think think_l wave cheer hug cross head head_l idea pen magnify slump facepalm sob clap hands_up shy stop hips heart dance shake gasp_hands fist wave_both bow.
+
+## Pictures drawn from your keywords (Collage look)
+
+Free AI picture services now refuse anonymous requests, and loosely matched stock photos were off-topic and repeated, so **auto** now means:
+your own `media/` files -> an AI picture if the service answers -> otherwise **the lab draws the picture from the beat's own words**:
+the place (bedroom, office, kitchen, gym, classroom, park, street, beach, space, lab ...), the things named (bed, phone, calendar, target, ladder, brain, planet ... ~90 drawings)
+and simple cartoon people acting out the line. A memory of the last pictures keeps consecutive beats different. `--media stock` still fetches free-licence photos if you want them.

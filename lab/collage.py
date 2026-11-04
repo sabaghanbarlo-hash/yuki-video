@@ -207,6 +207,9 @@ def accent_img(kind, size):
 
 
 # ------------------------------------------------------------------ the stage
+from . import props  # noqa: F401  (extra drawings)
+
+
 class CollageStage:
     def __init__(self, scene):
         self.sc = scene
@@ -233,26 +236,15 @@ class CollageStage:
     def _drawn_stage(self, shot, qi, pw, ph):
         key = (id(shot), qi)
         if key not in self._drawn:
-            from . import director as D, knowledge as K
+            from . import director as D, knowledge as K, illustrate as IL
             from .stage2d import Stage2D
-            rng = random.Random(shot["seed"] + qi * 13)
-            txt = (shot["queries"][qi] if shot.get("queries") and qi < len(shot["queries"]) else "") + " " + shot["text"] if qi else shot["text"]
-            f = D.features(shot["text"] if qi == 0 else (shot["queries"][qi] if qi < len(shot.get("queries", [])) else shot["text"]))
-            topic = K.topic_of(txt) or self.sc.get("topic") or "generic"
-            style = "toon" if (f["people"] >= 1 or topic in ("city", "history", "food", "body", "brain")) and rng.random() < 0.8 else "flat"
-            place, ps = K.place_of(txt)
-            env = D.choose_env(rng, topic, style, {}, {}, place if ps >= 2 else None)
-            DARK = {"deep_space", "nebula", "solar", "night_city", "data", "ocean_deep", "storm", "ember", "tunnel", "space", "cave", "underwater", "stage", "neural", "micro"}
-            if env in DARK:                                              # the page is cream: draw bright pictures
-                env = rng.choice(["day_sky", "forest", "ocean_surface", "lab", "arctic", "dusk_desert", "strata"] if style == "flat" else ["street", "room", "hills", "beach", "lab", "forest", "stage"])
-            pal = {"ocean": "ocean", "ice": "ice", "nature": "forest"}.get(topic) or rng.choice(["day", "day", "dusk"])
-            sub = dict(idx=0, heading="", kind="body", style=style, env=env, pal=pal, tod=None, seed=shot["seed"] + qi, topic=topic, mood=f["mood"], cues={},
+            rec = (shot.get("draw") or [None] * (qi + 1))[qi] if qi < len(shot.get("draw") or []) else None
+            if rec is None:                                              # old plans: plan it now (still from the beat's words)
+                rec = IL.plan_picture(shot["text"], shot["seed"], IL.new_memory(), self.sc.get("topic") or "generic", shot.get("face", "neutral"), qi)
+            txt = shot["text"]
+            sub = dict(idx=0, heading="", kind="body", style="toon", env=rec["env"], pal=rec["pal"], tod=None, seed=shot["seed"] + qi, topic=rec["topic"], mood=rec["mood"], cues={},
                        sentences=[dict(text=txt, spoken=txt, mood="neutral", pause=None, inline=[], para_end=True)], text=txt)
-            sshot = dict(sent=[0, 0], text=txt, feat=dict(mood=f["mood"], ents=[e[0] for e in f["ents"]]))
-            try:
-                (D.toon_shot if style == "toon" else D.flat_shot)(sshot, f, sub, rng, 0, [])
-            except Exception:
-                sshot.update(template="hero", cam=dict(k="drift", amp=0.6, flip=False), actors=[])
+            sshot = dict(sent=[0, 0], text=txt, template=rec["tpl"], cam=rec["cam"], actors=[dict(a) for a in rec["actors"]], feat=dict(mood=rec["mood"], ents=[]))
             st2 = Stage2D(sub); st2.no_labels = True
             self._drawn[key] = (st2, sshot)
         return self._drawn[key]

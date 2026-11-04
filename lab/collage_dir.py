@@ -267,21 +267,20 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
                     q = (ents[0][1].lower() + (" " + phrase if phrase and ents[0][1].lower() not in phrase else ""))[:70].strip()
                 else:
                     q = phrase
-            reuse = False
-            if not q or (len(q.split()) < 2 and not ents and not want_file):
-                if st["query"]:
-                    q, reuse = st["query"], True                      # nothing to illustrate: stay on the last picture
-                else:
-                    q = topic if topic != "generic" else "idea"
+            reuse = False                                              # every beat gets its own picture (never "stay on the last one")
+            if not q:
+                q = topic if topic != "generic" else "idea"
             ai_text = get("show") or clean_prompt(txt)
             queries, stock_queries = [ai_text if not reuse else ai_text], [" ".join(q.split()[:3])]
             split = False
+            part_txt = [txt]
             lay_cue = (get("layout") or "").lower()
             if (K.COMPARE.search(txt) and kind == "media") or lay_cue == "split":
                 m = re.split(r"\b(?:than|versus|vs\.?|compared (?:to|with)|while|but)\b", txt, maxsplit=1)
                 if len(m) == 2 and key_phrase(m[0], 3) and key_phrase(m[1], 3):
                     queries = [clean_prompt(m[0]), clean_prompt(m[1])]
                     stock_queries = [key_phrase(m[0], 3), key_phrase(m[1], 3)]
+                    part_txt = [m[0], m[1]]
                     split = True
 
             # ---- layout / treatment
@@ -358,6 +357,10 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
                     shot["icons"].append(dict(label=it, entity=e[0][0] if e else topic_icon))
             if kind == "stat" and nums:
                 shot["stat"] = dict(display=nums[0]["display"], sub=stat_caption(txt))
+            if kind in ("media", "text"):                              # the lab's own picture, drawn from this beat's keywords
+                from . import illustrate as IL
+                mem = st.setdefault("_mem", IL.new_memory())
+                shot["draw"] = [IL.plan_picture(pt, shot_seed, mem, topic, face, qi, kind) for qi, pt in enumerate(part_txt)]
             shots.append(shot)
             if kind in ("media", "text"):
                 st.update(queries=queries, stock=stock_queries, seed=shot_seed)

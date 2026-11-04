@@ -564,6 +564,151 @@ ENV_PAL = {"street": ["day", "dusk"], "room": ["day", "lab"], "hills": ["day", "
            "desert": ["dusk", "day"], "snow": ["ice", "day"], "stage": ["neon", "bio"], "underwater": ["ocean", "deep"], "rooftop": ["dusk", "neon"],
            "cave": ["bio", "nebula", "neon"], "lab": ["lab", "day"], "forest": ["forest", "day"]}
 
+# ------------------------------------------------------------------ everyday indoor places (self-improvement / daily-life scripts)
+def _room_shell(pal, rng, wall, floor, night=False):
+    far = _bg(pal, shade(wall, 0.10), shade(wall, -0.06))
+    for x in range(0, LW, 120):
+        far.rect(x, 0, x + 50, LH, shade(wall, -0.05), alpha=90)
+    return far
+
+
+def _window(m, wx, wy, ww, wh, night=False):
+    m.rect(wx - 14, wy - 14, wx + ww + 14, wy + wh + 14, (250, 246, 236), r=10)
+    m.rect(wx, wy, wx + ww, wy + wh, (30, 38, 86) if night else (140, 204, 250), r=4)
+    if night:
+        m.circle(wx + ww * 0.72, wy + wh * 0.3, 44, (255, 244, 200)); m.circle(wx + ww * 0.72 + 16, wy + wh * 0.3 - 8, 38, (30, 38, 86))
+        for (fx, fy) in ((0.2, 0.2), (0.4, 0.5), (0.3, 0.75), (0.85, 0.7), (0.55, 0.15)):
+            m.circle(wx + ww * fx, wy + wh * fy, 4, (255, 255, 220))
+    else:
+        cloud_toon(m, wx + ww * 0.3, wy + wh * 0.35, 110); cloud_toon(m, wx + ww * 0.7, wy + wh * 0.22, 70)
+    m.rect(wx + ww / 2 - 4, wy, wx + ww / 2 + 4, wy + wh, (250, 246, 236)); m.rect(wx, wy + wh / 2 - 4, wx + ww, wy + wh / 2 + 4, (250, 246, 236))
+
+
+def _floor(near, col, line):
+    ground(near, GY, col, line, shade(col, -0.1))
+    near.rect(-10, GY - 24, LW + 10, GY, (250, 246, 238))
+    for x in range(-60, LW + 100, 170):
+        near.rect(x, GY + 10, x + 3, LH + 10, shade(col, -0.12), alpha=150)
+
+
+def _env_bedroom(pal, rng):
+    wall = rng.choice([(70, 78, 150), (92, 80, 150), (60, 90, 150)])
+    far = _room_shell(pal, rng, wall, None)
+    m1 = _cv()
+    _window(m1, LW * 0.58, 200, 380, 330, night=True)
+    m1.rect(LW * 0.58 - 40, 160, LW * 0.58 + 420, 176, (150, 100, 70), r=6)
+    m2 = _cv()
+    bx = LW * 0.2
+    m2.rect(bx, GY - 160, bx + 520, GY + 6, (176, 124, 90), r=18)                          # bed frame
+    m2.rect(bx - 20, GY - 330, bx + 8, GY + 6, (150, 104, 76), r=10)
+    m2.rect(bx + 8, GY - 200, bx + 510, GY - 110, (236, 240, 252), r=26)
+    m2.rect(bx + 190, GY - 200, bx + 510, GY - 100, (116, 140, 228), r=26)
+    m2.rect(bx + 30, GY - 240, bx + 190, GY - 180, (255, 255, 255), r=26)
+    nx = bx + 600
+    m2.rect(nx, GY - 130, nx + 150, GY + 6, (150, 104, 76), r=8)                           # night stand + lamp
+    m2.rect(nx + 60, GY - 190, nx + 90, GY - 130, (110, 116, 150)); m2.poly([(nx + 30, GY - 190), (nx + 120, GY - 190), (nx + 100, GY - 260), (nx + 50, GY - 260)], (255, 226, 150))
+    m2.glow(nx + 75, GY - 230, 220, (255, 226, 150), 0.4, 2.0)
+    near = _cv(); _floor(near, (130, 100, 150), (150, 120, 170))
+    return [Layer(far.hi(), 0.04, True), Layer(m1.hi(), 0.25), Layer(m2.hi(), 0.6), Layer(near.hi(), 1.0)], dict(dust=((200, 210, 255), 14), twinkle=0), FEET + 8
+
+
+def _env_office(pal, rng):
+    wall = rng.choice([(226, 236, 246), (246, 238, 220), (222, 240, 232)])
+    far = _room_shell(pal, rng, wall, None)
+    m1 = _cv()
+    _window(m1, LW * rng.uniform(0.2, 0.35), 200, 420, 320)
+    for k in range(3):
+        fx = LW * 0.62 + k * 150
+        m1.rect(fx, 260, fx + 110, 340, (150, 100, 70), r=4); m1.rect(fx + 8, 268, fx + 102, 332, (200, 226, 250))
+        m1.poly([(fx + 8, 332), (fx + 40, 296), (fx + 62, 318), (fx + 80, 302), (fx + 102, 332)], (110, 190, 140))
+    m2 = _cv()
+    dx = LW * 0.3
+    m2.rect(dx, GY - 170, dx + 520, GY - 140, (176, 124, 90), r=8)                          # desk
+    for sd in (0, 1):
+        m2.rect(dx + 20 + sd * 460, GY - 140, dx + 40 + sd * 460, GY + 6, (150, 104, 76))
+    m2.rect(dx + 150, GY - 330, dx + 360, GY - 180, (60, 70, 110), r=10); m2.rect(dx + 160, GY - 320, dx + 350, GY - 190, (190, 230, 255), r=6)
+    m2.rect(dx + 244, GY - 180, dx + 266, GY - 170, (60, 70, 110)); m2.rect(dx + 210, GY - 176, dx + 300, GY - 168, (60, 70, 110), r=4)
+    m2.rect(dx + 400, GY - 220, dx + 450, GY - 170, (236, 84, 96), r=8)                      # mug
+    plant_pot(m2, LW - 120, GY + 6, 190)
+    near = _cv(); _floor(near, (150, 150, 168), (172, 172, 190))
+    return [Layer(far.hi(), 0.04, True), Layer(m1.hi(), 0.25), Layer(m2.hi(), 0.6), Layer(near.hi(), 1.0)], dict(dust=((255, 244, 214), 14)), FEET + 8
+
+
+def _env_kitchen(pal, rng):
+    wall = rng.choice([(255, 240, 210), (214, 240, 226), (255, 226, 214)])
+    far = _room_shell(pal, rng, wall, None)
+    m1 = _cv()
+    for x in range(60, LW - 200, 250):                                                       # tiles + cabinets
+        m1.rect(x, 130, x + 230, 330, (250, 246, 236), r=8); m1.rect(x + 100, 220, x + 130, 240, (170, 176, 196), r=4)
+    _window(m1, LW * 0.5, 380, 260, 170)
+    m2 = _cv()
+    m2.rect(0, GY - 210, LW, GY + 6, (176, 124, 90))
+    m2.rect(0, GY - 230, LW, GY - 206, (236, 232, 222))
+    m2.rect(LW * 0.55, GY - 380, LW * 0.55 + 190, GY - 230, (214, 220, 232), r=10)         # fridge-ish
+    for i, c in enumerate(((236, 84, 96), (255, 206, 70), (110, 200, 120))):                 # fruit bowl
+        m2.circle(LW * 0.25 + i * 50, GY - 250, 24, c)
+    m2.ellipse(LW * 0.25 + 50, GY - 228, 90, 18, (150, 104, 76))
+    near = _cv(); _floor(near, (240, 208, 160), (255, 226, 180))
+    return [Layer(far.hi(), 0.04, True), Layer(m1.hi(), 0.25), Layer(m2.hi(), 0.6), Layer(near.hi(), 1.0)], dict(dust=((255, 244, 214), 10)), FEET + 8
+
+
+def _env_gym(pal, rng):
+    wall = rng.choice([(236, 238, 250), (255, 236, 220)])
+    far = _room_shell(pal, rng, wall, None)
+    m1 = _cv()
+    m1.rect(0, 150, LW, 190, (236, 84, 96)); m1.rect(0, 200, LW, 216, (90, 96, 140))
+    for x in range(120, LW - 200, 320):
+        m1.rect(x, 260, x + 220, 480, (200, 226, 250), r=8)
+    m2 = _cv()
+    rx = LW * 0.15
+    m2.rect(rx, GY - 220, rx + 520, GY - 204, (170, 176, 196), r=6)                          # weight rack
+    for sd in range(6):
+        m2.rect(rx + 20 + sd * 85, GY - 204, rx + 36 + sd * 85, GY + 6, (150, 156, 180))
+        m2.rect(rx + 8 + sd * 85, GY - 260, rx + 48 + sd * 85, GY - 220, [(236, 84, 96), (90, 150, 236), (255, 206, 70)][sd % 3], r=6)
+    m2.rect(LW * 0.66, GY - 140, LW * 0.66 + 300, GY - 110, (70, 80, 120), r=10)           # bench
+    near = _cv(); _floor(near, (96, 108, 150), (120, 132, 176))
+    return [Layer(far.hi(), 0.04, True), Layer(m1.hi(), 0.25), Layer(m2.hi(), 0.6), Layer(near.hi(), 1.0)], dict(dust=((255, 244, 214), 10)), FEET + 8
+
+
+def _env_classroom(pal, rng):
+    wall = rng.choice([(240, 244, 226), (230, 240, 250)])
+    far = _room_shell(pal, rng, wall, None)
+    m1 = _cv()
+    m1.rect(LW * 0.2, 150, LW * 0.8, 440, (150, 100, 70), r=10); m1.rect(LW * 0.2 + 14, 164, LW * 0.8 - 14, 426, (40, 86, 70), r=6)
+    m1.line((LW * 0.28, 230), (LW * 0.42, 220), 6, (240, 240, 240), alpha=210); m1.line((LW * 0.28, 280), (LW * 0.52, 290), 6, (240, 240, 240), alpha=210)
+    m1.circle(LW * 0.66, 260, 38, (240, 240, 240), alpha=200)
+    m2 = _cv()
+    for i in range(3):
+        dx = LW * (0.12 + i * 0.3)
+        m2.rect(dx, GY - 130, dx + 260, GY - 108, (196, 150, 104), r=6)
+        m2.rect(dx + 20, GY - 108, dx + 34, GY + 6, (150, 156, 180)); m2.rect(dx + 226, GY - 108, dx + 240, GY + 6, (150, 156, 180))
+        m2.rect(dx + 40, GY - 150, dx + 90, GY - 130, (96, 130, 226), r=4)
+    near = _cv(); _floor(near, (206, 170, 120), (226, 190, 140))
+    return [Layer(far.hi(), 0.04, True), Layer(m1.hi(), 0.25), Layer(m2.hi(), 0.6), Layer(near.hi(), 1.0)], dict(dust=((255, 244, 214), 10)), FEET + 8
+
+
+def _env_park(pal, rng):
+    sky = _bg(pal, (170, 222, 255), (230, 246, 255))
+    m0 = _cv()
+    cloud_toon(m0, LW * 0.25, 160, 160); cloud_toon(m0, LW * 0.6, 120, 120); sun_toon(m0, LW * 0.8, 150, 62)
+    m1 = _cv()
+    for x in range(-100, LW + 100, 330):
+        tree_round(m1, x + rng.uniform(-30, 30), GY - 20, rng.uniform(300, 380), (150, 104, 76), (96, 188, 110))
+    m2 = _cv()
+    m2.rect(LW * 0.35, GY - 120, LW * 0.35 + 300, GY - 100, (176, 124, 90), r=6)            # bench
+    m2.rect(LW * 0.35, GY - 190, LW * 0.35 + 300, GY - 168, (176, 124, 90), r=6)
+    for sd in (0, 1):
+        m2.rect(LW * 0.35 + 20 + sd * 250, GY - 100, LW * 0.35 + 36 + sd * 250, GY + 4, (90, 96, 130))
+    lamp(m2, LW * 0.8, GY + 4, 340)
+    near = _cv(); ground(near, GY, (110, 196, 120), (136, 214, 140), (88, 170, 100))
+    for _ in range(36):
+        near.circle(rng.uniform(0, LW), rng.uniform(GY + 20, LH - 6), 5, rng.choice([(255, 220, 230), (255, 240, 150), (255, 255, 255)]))
+    return [Layer(sky.hi(), 0.04, True), Layer(m0.hi(), 0.1), Layer(m1.hi(), 0.4), Layer(m2.hi(), 0.7), Layer(near.hi(), 1.0)], dict(birds=3, leaves=6), FEET
+
+
+ENV_FN.update(bedroom=_env_bedroom, office=_env_office, kitchen=_env_kitchen, gym=_env_gym, classroom=_env_classroom, park=_env_park)
+ENV_PAL.update(bedroom=["dusk", "day"], office=["day", "lab"], kitchen=["day"], gym=["day", "lab"], classroom=["day"], park=["day", "forest"])
+
 
 def build(env, pal_name, seed):
     if env not in ENV_FN:
