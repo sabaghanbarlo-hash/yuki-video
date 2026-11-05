@@ -57,7 +57,7 @@ SYN = {
     "cold": "cold face", "hot": "hot face", "tree": "deciduous tree", "forest": "evergreen tree", "nature": "deciduous tree", "flower": "cherry blossom", "plant": "seedling", "animal": "paw prints",
     "dog": "dog face", "cat": "cat face", "bird": "bird", "fish": "fish", "ocean": "water wave", "sea": "water wave", "city": "cityscape", "street": "cityscape",
 }
-NO_ICON = set("people person man men woman women guy someone everyone crowd society humans human team boy girl lady".split())      # people are drawn as cartoon characters, not icons
+NO_ICON = set("people person man men woman women guy someone everyone crowd society humans human team boy girl lady call calls called part head hard work works working found keep makes make feel feels".split())      # people are drawn as cartoon characters, not icons
 _STEM = [("ies", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")]
 
 

@@ -18,24 +18,24 @@ R = lambda p: re.compile(p, re.I)
 # ------------------------------------------------------------------ places
 PLACE_WORDS = [   # (regex, toon env)   daily-life places first: they are what self-improvement scripts are about
     (R(r"\b(bed|bedroom|sleep\w*|asleep|insomnia|pillow|night|midnight|tired|exhaust\w+|nap\w*|dream\w*|wake|waking|awake|morning)\b"), "bedroom"),
-    (R(r"\b(office|desk|laptop|email\w*|meeting\w*|boss|colleagues?|deadline\w*|work(ing)?|job|career|procrastinat\w+|coding|code|project\w*|client\w*|freelanc\w+|productiv\w+)\b"), "office"),
+    (R(r"\b(office|desk|laptop|email\w*|meeting\w*|boss|colleagues?|deadline\w*|job|career|procrastinat\w+|coding|code|project\w*|client\w*|freelanc\w+|productiv\w+)\b"), "office"),
     (R(r"\b(kitchen|cook\w*|food|eat\w*|meal\w*|breakfast|lunch|dinner|recipe\w*|snack\w*|sugar|diet|hungry|coffee|fridge|fruit\w*|vegetable\w*)\b"), "kitchen"),
-    (R(r"\b(gym|workout\w*|exercis\w+|muscle\w*|lift\w*|fitness|training|push.?ups?|run(ning)?|stronger|weights?)\b"), "gym"),
-    (R(r"\b(school|class(room)?|study\w*|student\w*|exam\w*|homework|teacher\w*|lesson\w*|learn\w*|university|college|lecture|professor\w*|education|textbook\w*)\b"), "classroom"),
+    (R(r"\b(gym|workout\w*|exercis\w+|muscle\w*|fitness|push.?ups?|stronger|weights?)\b"), "gym"),
+    (R(r"\b(school|class(room)?|study\w*|student\w*|exam\w*|homework|teacher\w*|lesson\w*|university|college|lecture|professor\w*|education|textbook\w*)\b"), "classroom"),
     (R(r"\b(park|outside|outdoors?|walk\w*|fresh air|bench|nature|friends?|picnic|sunshine|garden|stroll\w*|hik\w+)\b"), "park"),
-    (R(r"\b(street|road|traffic|commut\w+|bus|train|crowd\w*|downtown|neighbou?rhood|shop\w*|store|market)\b"), "street"),
+    (R(r"\b(street|road|traffic|commut\w+|bus|train|downtown|neighbou?rhood|shop\w*|store|market)\b"), "street"),
     (R(r"\b(home|house|room|living room|couch|sofa|alone|lonely|family|parents?|kids?|children)\b"), "room"),
-    (R(r"\b(rooftop|skyline|city lights|high up|view)\b"), "rooftop"),
-    (R(r"\b(lab|experiment\w*|scientists?|research\w*|test\w*|chemical\w*|microscop\w+|cells?|bacteria|dna|biology|chemistry|physics)\b"), "lab"),
-    (R(r"\b(forest|woods|trees?|jungle|wild\w*|animals?|hunt\w*|ancestors?)\b"), "forest"),
-    (R(r"\b(hills?|countryside|field\w*|farm\w*|village|path|journey|mountain\w*|valley)\b"), "hills"),
+    (R(r"\b(rooftop|skyline|city lights|high up)\b"), "rooftop"),
+    (R(r"\b(lab|experiment\w*|scientists?|research\w*|chemical\w*|microscop\w+|cells?|bacteria|dna|biology|chemistry|physics)\b"), "lab"),
+    (R(r"\b(forest|woods|trees?|jungle|wild\w*|hunt\w*|ancestors?)\b"), "forest"),
+    (R(r"\b(hills?|countryside|field\w*|farm\w*|village|mountain\w*|valley)\b"), "hills"),
     (R(r"\b(beach|ocean|sea|waves?|shore|vacation|holiday|island)\b"), "beach"),
-    (R(r"\b(desert|sand|dunes?|hot|heat|thirst\w*)\b"), "desert"),
-    (R(r"\b(snow\w*|ice|frozen|winter|cold|arctic|freez\w+)\b"), "snow"),
+    (R(r"\b(desert|sand|dunes?|thirst\w*)\b"), "desert"),
+    (R(r"\b(snow\w*|ice|frozen|winter|arctic|freez\w+)\b"), "snow"),
     (R(r"\b(underwater|deep sea|dive\w*|reef|submarine)\b"), "underwater"),
     (R(r"\b(space|planets?|stars?|galax\w+|universe|cosmos|astronaut\w*|orbit|moon|solar system|rocket\w*)\b"), "space"),
-    (R(r"\b(cave\w*|underground|tunnel|dark|lava|volcan\w+)\b"), "cave"),
-    (R(r"\b(stage|audience|perform\w*|speech|presentation|public speaking|spotlight|applause|concert|show)\b"), "stage"),
+    (R(r"\b(cave\w*|underground|tunnel|lava|volcan\w+)\b"), "cave"),
+    (R(r"\b(stage|audience|perform\w*|speech|presentation|public speaking|spotlight|applause|concert)\b"), "stage"),
 ]
 PLACE_ENV_SPECIFIC = {"galaxy": "space", "solar_system": "space", "orbit": "space", "space": "space", "underwater": "underwater", "deep_sea": "underwater"}
 FALLBACK_ENVS = ["street", "room", "park", "hills", "office", "rooftop", "forest", "kitchen", "classroom", "beach", "stage", "gym", "bedroom", "lab"]
@@ -111,10 +111,10 @@ def choose_env(txt, topic, rng, mem, f):
         return fresh[0]
     if cands:                                                        # the words really are about this place: stay, but the layout will differ
         return cands[0]
+    if mem["envs"]:                                                  # no place named: stay in the video's setting, never jump to a random one
+        return mem["envs"][-1]
     t_env = TOPIC_ENV.get(topic)
-    pool = ([t_env] if t_env else []) + FALLBACK_ENVS
-    fresh = [e for e in pool if e not in mem["envs"][-4:]]
-    return (fresh or pool)[0] if t_env and t_env in fresh else rng.choice(fresh or pool)
+    return t_env or "room"
 
 
 def choose_action(txt, expr, rng, mem):
