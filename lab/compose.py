@@ -101,7 +101,11 @@ class Compositor:
         t_rel = t - shot["t0"]
         if hold_end:
             t_rel = min(t_rel, dur - 0.25)
-        im = self.stage(i).frame(shot, max(0.0, t_rel), dur, mo, mo, t)
+        stg = self.stage(i)
+        if getattr(stg, "wants_vis", False):
+            vis = int(self.mouth[fr]) if (not hold_end and fr >= 0 and len(self.mouth)) else 0
+            mo = mo + 10 * vis                      # collage decodes: whole part / 10 = mouth shape, remainder = loudness
+        im = stg.frame(shot, max(0.0, t_rel), dur, mo, mo, t)
         return im
 
     # ---- the full frame

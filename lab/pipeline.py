@@ -367,8 +367,9 @@ def make(text, args, out_path, tmp):
     audio, voice_t = mix(plan, sent_audio, total)
     n_frames = int(math.ceil(total * FPS))
     lvl, amp = mouth_levels(voice_t, n_frames)
+    lvl, _ = A.viseme_track(voice_t, n_frames, FPS)
     json.dump(_plan_json(plan), open(Path(out_path).with_suffix(".plan.json"), "w"), indent=1)
-    render_video(plan, amp, amp, total, audio, out_path, tmp, workers=getattr(args, "workers", None))
+    render_video(plan, lvl, amp, total, audio, out_path, tmp, workers=getattr(args, "workers", None))
     return total, plan
 
 

@@ -321,3 +321,55 @@ def mouth_track(audio, n_frames, fps):
         if lvl[i - 1] == lvl[i + 1] != lvl[i]:
             lvl[i] = lvl[i - 1]
     return lvl, np.clip(sm, 0, 1)
+
+
+def viseme_track(audio, n_frames, fps):
+    """Per-frame mouth shape from the sound itself: 0 closed, 1 mid "eh", 2 wide "ah", 3 small, 4 "ee" (wide, thin), 5 "oo" (round).
+    Uses loudness for open/closed and the spectrum (where the vowel energy sits) for the shape."""
+    hop = SR / fps
+    win = 1024
+    rms = np.zeros(n_frames, np.float32)
+    cls = np.zeros(n_frames, np.int8)
+    freqs = np.fft.rfftfreq(win, 1.0 / SR)
+    band = lambda lo, hi: (freqs >= lo) & (freqs < hi)
+    b_lo, b_f1, b_f2, b_hi = band(150, 450), band(450, 1100), band(1400, 3200), band(4500, 9000)
+    hann = np.hanning(win).astype(np.float32)
+    for f in range(n_frames):
+        c = int((f + 0.5) * hop)
+        seg = audio[max(0, c - win // 2): c + win // 2]
+        if len(seg) < win:
+            seg = np.pad(seg, (0, win - len(seg)))
+        rms[f] = np.sqrt(np.mean(seg ** 2))
+        sp = np.abs(np.fft.rfft(seg * hann)) ** 2
+        lo, f1, f2, hi = sp[b_lo].sum(), sp[b_f1].sum(), sp[b_f2].sum(), sp[b_hi].sum()
+        tot = lo + f1 + f2 + 1e-9
+        if hi > 1.2 * (lo + f1 + f2):
+            cls[f] = 3
+        elif f2 / tot > 0.38:
+            cls[f] = 4
+        elif lo / tot > 0.55 and f1 < 0.45 * lo:
+            cls[f] = 5
+        elif f1 / tot > 0.5:
+            cls[f] = 2
+        else:
+            cls[f] = 1
+    active = rms[rms > 0.006]
+    ref = np.percentile(active, 90) if len(active) else 1.0
+    lv = np.clip(rms / max(ref, 1e-4), 0, 1.3)
+    sm = lv.copy()
+    sm[1:-1] = 0.65 * lv[1:-1] + 0.175 * (lv[:-2] + lv[2:])
+    vis = np.zeros(n_frames, np.int8)
+    for f in range(n_frames):
+        if sm[f] < 0.10:
+            vis[f] = 0
+        elif sm[f] < 0.24:
+            vis[f] = 3 if cls[f] in (1, 2, 3) else cls[f]
+        else:
+            vis[f] = cls[f]
+            if vis[f] == 1 and sm[f] > 0.7:
+                vis[f] = 2
+    out = vis.copy()
+    for i in range(1, n_frames - 1):
+        if vis[i - 1] == vis[i + 1] != vis[i]:
+            out[i] = vis[i - 1]
+    return out, np.clip(sm, 0, 1)

@@ -266,8 +266,8 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI, cover=None):
     elif mouth == 1:
         _ell(d, (mx - 7, my - 6, mx + 7, my + 8), MOUTH_IN, None)
     elif mouth == 2:
-        _ell(d, (mx - 13, my - 7, mx + 13, my + 15), MOUTH_IN, None)
-        _ell(d, (mx - 8, my + 5, mx + 8, my + 14), TONGUE, None)
+        _ell(d, (mx - 16, my - 8, mx + 16, my + 20), MOUTH_IN, None)
+        _ell(d, (mx - 9, my + 8, mx + 9, my + 19), TONGUE, None)
     elif mouth == 3:
         _ell(d, (mx - 5, my - 5, mx + 5, my + 8), MOUTH_IN, None)
     elif mouth == 5:                                                   # smirk
@@ -298,6 +298,11 @@ def head_base(mouth, eyes, brow, gaze, look=YUKI, cover=None):
     elif mouth == 14:                                                  # sobbing: wide wobbly open
         _ell(d, (mx - 16, my - 6, mx + 16, my + 20), MOUTH_IN, None)
         d.arc(P(mx - 12, my + 4, mx + 12, my + 22), 200, 340, fill=TONGUE, width=5 * SS)
+    elif mouth == 15:                                                  # "ee": wide and thin, teeth showing
+        _round(d, (mx - 20, my - 5, mx + 20, my + 8), 6, MOUTH_IN, None)
+        d.rectangle(P(mx - 15, my - 4, mx + 15, my), fill=(255, 255, 255))
+    elif mouth == 16:                                                  # "oo": small round pucker
+        _ell(d, (mx - 8, my - 8, mx + 8, my + 10), MOUTH_IN, None)
     elif mouth == 6:                                                   # flat / unimpressed
         d.line([tuple(P(*p)) for p in ((mx - 12, my + 2), (mx + 12, my + 2))], fill=MC, width=3 * SS)
     else:  # 4: happy open smile
@@ -596,6 +601,7 @@ FACES.update({
 })
 LOCK_MOUTH = {"laughing", "crying", "teary", "gasp", "terrified", "pained", "nervous", "awkward", "embarrassed", "cheeky", "yum"}   # keep their own mouth while talking
 TALK_SHAPE = {0: None, 1: 3, 2: 1, 3: 2}
+VISEME_MOUTH = {1: 1, 2: 2, 3: 3, 4: 15, 5: 16}   # eh, ah, small, ee, oo
 
 
 def _lerp(a, b, k):
@@ -644,7 +650,7 @@ def _prop_sprite(kind, s):
     return _small(im, s)
 
 
-def draw_figure(frame, x, floor_y, s, pose="rest", prev_pose=None, blend=1.0, t=0.0, face="neutral", amp=0.0, gaze=0, tilt=0.0,
+def draw_figure(frame, x, floor_y, s, pose="rest", prev_pose=None, blend=1.0, t=0.0, face="neutral", amp=0.0, vis=None, gaze=0, tilt=0.0,
                 flip=False, hop=0.0, wiggle=1.0, shadow=False, look=YUKI):
     """Draw Yuki onto `frame` (RGBA) with her feet at (x, floor_y). Everything depends only on the arguments.
     pose / prev_pose: names in POSES (arms ease from prev_pose to pose as blend goes 0 -> 1); face: key of FACES;
@@ -664,15 +670,15 @@ def draw_figure(frame, x, floor_y, s, pose="rest", prev_pose=None, blend=1.0, t=
     if blink and eyes in ("open", "wide", "sleepy", "smug", "dot", "dead"):
         eyes = "blink"
     q = 0 if amp < 0.11 else 1 if amp < 0.34 else 2 if amp < 0.66 else 3
-    mouth = closed if q == 0 else TALK_SHAPE[q]
-    if q == 3 and face in ("happy", "smile", "excited"):
-        mouth = 4
-    if face in LOCK_MOUTH and q:
-        mouth = closed
-        if face in ("crying", "laughing", "gasp") and q == 1:
+    if vis is not None:
+        q = 0 if (vis == 0 and amp < 0.11) else max(q, 1)
+        mouth = closed if vis == 0 else VISEME_MOUTH[vis]
+    else:
+        mouth = closed if q == 0 else TALK_SHAPE[q]
+        if q == 3 and face in ("happy", "smile", "excited"):
+            mouth = 4
+        if q and face == "smug" and q < 3:
             mouth = 1
-    if q and face == "smug" and q < 3:
-        mouth = 1
     sway = max(-4, min(4, int(round(2.4 * math.sin(t * 2.2)))))
     bob = 2.6 * math.sin(t * 1.7) + 1.0 * math.sin(t * 3.1) + (14 * math.sin(max(0.0, min(1.0, hop)) * math.pi) if hop > 0 else 0)
     head_tilt = tilt + 1.6 * math.sin(t * 1.1) + 1.0 * math.sin(t * 2.7 + 1)

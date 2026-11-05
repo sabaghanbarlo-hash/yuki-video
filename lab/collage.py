@@ -211,6 +211,8 @@ from . import props  # noqa: F401  (extra drawings)
 
 
 class CollageStage:
+    wants_vis = True                      # gets the mouth shape encoded in `mouth` (see compose.scene_frame)
+
     def __init__(self, scene):
         self.sc = scene
         self.seed = scene["seed"]
@@ -441,7 +443,9 @@ class CollageStage:
         hop = clamp(t_rel / 0.45) if (shot.get("hop") and t_rel < 0.45) else 0.0
         s = round(s * 50) / 50.0
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        ox, oy = Y.draw_figure(layer, x, fy, s, pose=shot["pose"], prev_pose=pp, blend=blend, t=t_abs, face=shot["face"], amp=mouth,
+        vis = int(mouth // 10) if mouth >= 10 else None
+        mouth = mouth - 10 * (vis or 0)
+        ox, oy = Y.draw_figure(layer, x, fy, s, pose=shot["pose"], prev_pose=pp, blend=blend, t=t_abs, face=shot["face"], amp=mouth, vis=vis,
                                gaze=shot["gaze"], tilt=shot["tilt"], flip=shot["flip"], hop=hop)
         if shot["layout"] == "fullbleed":                            # a soft paper-white halo so she reads on a busy picture
             a = layer.getchannel("A").filter(ImageFilter.MaxFilter(11)).filter(ImageFilter.GaussianBlur(5))
