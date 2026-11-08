@@ -44,6 +44,22 @@ def _beats(raw_scenes):
     return out
 
 
+def _gemini_text_models(key):
+    """Newest full-size 'flash' text models this key can use (lite, tts, image, live and audio variants are skipped); [] when the list cannot be read."""
+    try:
+        req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", headers={"x-goog-api-key": key, "User-Agent": "yuki-lab/1.0"})
+        with urllib.request.urlopen(req, timeout=25) as r:
+            names = [m["name"].split("/")[-1] for m in json.loads(r.read().decode()).get("models", []) if "generateContent" in m.get("supportedGenerationMethods", [])]
+        bad = ("lite", "tts", "image", "live", "audio", "thinking", "robotics", "computer", "embedding", "preview-")
+        names = [n for n in names if "flash" in n and not any(b in n for b in bad)]
+        def ver(n):
+            m = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
+            return -(float(m.group(1)) if m else 0.0)
+        return sorted(names, key=lambda n: (ver(n), "preview" in n, n))[:3]
+    except Exception:
+        return []
+
+
 def _provider():
     if os.environ.get("YUKI_LLM_URL") and os.environ.get("YUKI_LLM_KEY"):
         return dict(kind="openai", name="custom", url=os.environ["YUKI_LLM_URL"], key=os.environ["YUKI_LLM_KEY"], models=[os.environ.get("YUKI_LLM_MODEL") or os.environ.get("YUKI_BRAIN_MODEL") or "default"])
@@ -54,7 +70,7 @@ def _provider():
     if os.environ.get("GEMINI_API_KEY"):
         m = os.environ.get("YUKI_BRAIN_MODEL")
         return dict(kind="gemini", name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", key=os.environ["GEMINI_API_KEY"],
-                    models=[m] if m else ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"])
+                    models=[m] if m else _gemini_text_models(os.environ["GEMINI_API_KEY"]) + ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"])
     return None
 
 
@@ -80,7 +96,7 @@ Allowed values (anything else is ignored):
 Be specific and varied: do not give every phrase the same face, pose or drawing."""
 
 
-def _post(url, headers, body, timeout=60):
+def _post(url, headers, body, timeout=120):
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "User-Agent": "yuki-lab/1.0", **headers})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8", "replace"))
@@ -99,6 +115,8 @@ def _ask(prov, system, user):
                 else:
                     body = dict(systemInstruction={"parts": [{"text": system}]}, contents=[{"role": "user", "parts": [{"text": user}]}],
                                 generationConfig=dict(temperature=0.3, responseMimeType="application/json"))
+                    if "2.5" in model:                         # the 2.5 models "think" for a long time before answering; the directing task does not need it
+                        body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
                     data = _post(prov["url"].format(model=model), {"x-goog-api-key": prov["key"]}, body)
                     txt = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
                 txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()

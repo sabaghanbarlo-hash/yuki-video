@@ -31,6 +31,7 @@ jobs:
       SCRIPT: ${{ github.event.inputs.script }}
       STYLE: ${{ github.event.inputs.style }}
       SEED: ${{ github.event.inputs.seed }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Check inputs
