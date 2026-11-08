@@ -102,7 +102,7 @@ def pose(action, t, role="citizen"):
         k = 0.5 + 0.5 * math.sin(math.tau * 0.8 * t)
         P.update(arms=[(34, 72 + 10 * k), (34, 72 + 10 * k)], tilt=8 * math.sin(math.tau * 0.8 * t), lift=3 * k)
     elif action == "think":
-        P.update(arms=[(62, 148), (14, 98)], tilt=7 + 2 * math.sin(t * 1.5), look=(0.8, -0.8), lean=-2)
+        P.update(arms=[(78 + 6 * math.sin(t * 1.3), 34 + 8 * math.sin(t * 1.3 + 0.6)), (22, 96)], tilt=7 + 2 * math.sin(t * 1.5), look=(0.8, -0.8), lean=-2)   # one hand on the hip, the other out ("hmm"): never a hand on the face
         P["expr"] = "curious"
     elif action == "fall":
         f = math.sin(t * 11)

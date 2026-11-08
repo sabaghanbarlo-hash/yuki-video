@@ -100,12 +100,22 @@ def split_beats(text, lo=4, hi=10):
 
 
 # ------------------------------------------------------------------ what to show
+FILLER_WORDS = {"remember", "sometimes", "always", "never", "maybe", "really", "actually", "basically", "simply", "just", "keep", "making", "makes", "make", "take", "takes",
+                "thing", "things", "something", "anything", "everything", "means", "mean", "means", "going", "doing", "being", "having", "getting", "trying", "need", "needs",
+                "best", "better", "often", "every", "much", "many", "more", "most", "very", "even", "still", "also", "here", "there", "that", "this", "than", "then", "your", "yours"}
+
+
+def caps(phrase):
+    """Capitalise each word without the 'Don'T' bug of str.title()."""
+    return " ".join(w[:1].upper() + w[1:] for w in phrase.split())
+
+
 def key_phrase(txt, n=4):
     ws = re.findall(r"[A-Za-z][A-Za-z'\-]+", txt)
     keep, seen = [], set()
     for w in ws:
         lw = w.lower().strip("'-")
-        if lw in QSTOP or lw in NUMBERWORDS or len(lw) < 4 or lw in seen:
+        if "'" in lw or lw in FILLER_WORDS or lw in QSTOP or lw in NUMBERWORDS or len(lw) < 4 or lw in seen:
             continue
         seen.add(lw); keep.append(lw)
     return " ".join(keep[:n])
@@ -251,7 +261,7 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
             elif len(items) >= 2 and rng.random() < 0.55 and st["kind"] != "icons":
                 kind = "icons"
             elif _words(txt) >= 7 and not f["hook"] and rng.random() < 0.04 and st["kind"] == "media" and key_phrase(txt, 2):
-                kind, term = "text", key_phrase(txt, 2).title()
+                kind, term = "text", caps(key_phrase(txt, 2))
             if st["kind"] in ("text", "stat") and kind in ("text", "stat") and rng.random() < 0.7:
                 kind = "media"                                         # never two text-ish beats in a row
 
@@ -313,7 +323,17 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
                 enter = "cut"
 
             # ---- Yuki
-            face, pose, acc = read_mood(txt, f, first, rng, st["n"])
+            try:                                                       # what the sentence DOES + feels like (negation aware), see understand.py
+                from . import understand as U
+                umem = st.setdefault("_u", U.new_memory())
+                last = bool(scene.get("idx", 0) == U.STATE["n_scenes"] - 1 and si == len(sents) - 1 and bi == len(beats) - 1) if U.STATE["n_scenes"] else False
+                hint = U.hint(txt, umem, rng, first=first, last=last)
+                U.remember(umem, hint)
+                face, pose, acc = hint["face"], hint["pose"], hint["acc"]
+            except Exception as e:                                     # never fail a video because of the smart layer
+                print(f"  [understand] fallback ({type(e).__name__}: {e})", flush=True)
+                hint = None
+                face, pose, acc = read_mood(txt, f, first, rng, st["n"])
             if get("face") or get("expr"):
                 face = (get("face") or get("expr")).lower()
             if get("pose"):
@@ -360,7 +380,8 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
             if kind in ("media", "text"):                              # the lab's own picture, drawn from this beat's keywords
                 from . import illustrate as IL
                 mem = st.setdefault("_mem", IL.new_memory())
-                shot["draw"] = [IL.plan_picture(pt, shot_seed, mem, topic, face, qi, kind) for qi, pt in enumerate(part_txt)]
+                shot["draw"] = [IL.plan_picture(pt, shot_seed, mem, topic, face, qi, kind, hint=hint if qi == 0 else None) for qi, pt in enumerate(part_txt)]
+                shot["why"] = dict(role=hint["role"], emotion=hint["emotion"], concepts=hint["concepts"], source=hint["source"]) if hint else None
             shots.append(shot)
             if kind in ("media", "text"):
                 st.update(queries=queries, stock=stock_queries, seed=shot_seed)

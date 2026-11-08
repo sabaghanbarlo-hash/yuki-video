@@ -44,6 +44,9 @@ def build_plan(text, seed=0, force_style=None, max_scenes=None):
         raw = raw[:max_scenes]
     if not raw:
         raise SystemExit("The script has no text to narrate.")
+    if force_style == "collage" or any("collage" in str(r.cues.get("style", "")).lower() for r in raw):
+        from . import understand
+        understand.begin(title, raw, force_style)                  # the optional LLM art director reads the whole script (no key = rules only)
     plan = direct(title, raw, seed, force_style)
     sc = plan["scenes"]
     topic = sc[0]["topic"]

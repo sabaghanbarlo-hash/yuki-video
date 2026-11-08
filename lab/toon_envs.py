@@ -710,6 +710,37 @@ ENV_FN.update(bedroom=_env_bedroom, office=_env_office, kitchen=_env_kitchen, gy
 ENV_PAL.update(bedroom=["dusk", "day"], office=["day", "lab"], kitchen=["day"], gym=["day", "lab"], classroom=["day"], park=["day", "forest"])
 
 
+# ------------------------------------------------------------------ "mindscapes": soft abstract backdrops for IDEAS (no room, no street), tinted by the feeling
+MIND_STYLES = {
+    "mind_dusk":  dict(top=(52, 44, 120), bot=(196, 140, 200), hill=(92, 78, 160), near=(70, 60, 138), line=(120, 104, 190), stars=90, cloud=(226, 210, 255), bok=[(255, 210, 240), (190, 170, 255)], amb=dict(twinkle=26, dust=((230, 220, 255), 10))),
+    "mind_dawn":  dict(top=(255, 168, 140), bot=(255, 234, 196), hill=(255, 190, 150), near=(238, 160, 128), line=(255, 214, 170), stars=0, cloud=(255, 246, 232), bok=[(255, 255, 255), (255, 220, 170)], amb=dict(dust=((255, 244, 210), 14), birds=2, sparkle=(255, 240, 190, 60))),
+    "mind_calm":  dict(top=(110, 202, 212), bot=(224, 250, 240), hill=(140, 214, 196), near=(108, 196, 176), line=(170, 232, 212), stars=0, cloud=(255, 255, 255), bok=[(255, 255, 255), (190, 245, 230)], amb=dict(dust=((255, 255, 255), 12), leaves=4)),
+    "mind_storm": dict(top=(40, 44, 78), bot=(112, 118, 152), hill=(66, 70, 108), near=(52, 56, 92), line=(96, 102, 144), stars=0, cloud=(150, 156, 190), bok=[(180, 190, 255), (140, 150, 220)], amb=dict(rain=36, dust=((200, 206, 240), 6))),
+}
+
+
+def _mind(pal, rng, key):
+    m = MIND_STYLES[key]
+    far = _bg(pal, m["top"], m["bot"])
+    if m["stars"]:
+        stars(far, rng, m["stars"], ysplit=0.75, big=0.12)
+    bokeh(far, rng, m["bok"], n=14, rmin=30, rmax=110)
+    sun_toon(far, LW * rng.uniform(0.2, 0.8), rng.uniform(210, 300), rng.uniform(44, 70), col=m["cloud"]) if key in ("mind_dawn", "mind_dusk") else None
+    mid = _cv()
+    for _ in range(5):
+        cloud_toon(mid, rng.uniform(80, LW - 80), rng.uniform(120, 380), rng.uniform(190, 330), col=m["cloud"], alpha=190)
+    h0 = _cv(); hills(h0, rng, GY - 150, 70, m["hill"], 3, step=10)
+    near = _cv(); ground(near, GY, m["near"], m["line"], tuple(int(c * 0.82) for c in m["near"]))
+    for _ in range(26):
+        near.circle(rng.uniform(0, LW), rng.uniform(GY + 24, LH - 8), rng.uniform(3, 7), m["line"], alpha=150)
+    return [Layer(far.hi(), 0.03, True), Layer(mid.hi(), 0.25), Layer(h0.hi(), 0.5), Layer(near.hi(), 1.0)], dict(m["amb"]), FEET
+
+
+for _k in MIND_STYLES:
+    ENV_FN[_k] = (lambda pal, rng, _k=_k: _mind(pal, rng, _k))
+    ENV_PAL[_k] = ["day"]
+
+
 def build(env, pal_name, seed):
     if env not in ENV_FN:
         env = "hills"

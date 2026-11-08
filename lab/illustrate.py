@@ -10,14 +10,17 @@ plan_picture() returns a plain dict (a "recipe"), so rendering later is stateles
 """
 import re
 from . import knowledge as K
+from . import entities as E
 from . import props                       # noqa: F401  (registers the extra drawings)
+from . import metaphors                   # noqa: F401  (registers the drawings for abstract ideas: tangle, thought_loop, rewind_clock ...)
 from . import icons as IC
 
 R = lambda p: re.compile(p, re.I)
 
 # ------------------------------------------------------------------ places
 PLACE_WORDS = [   # (regex, toon env)   daily-life places first: they are what self-improvement scripts are about
-    (R(r"\b(bed|bedroom|sleep\w*|asleep|insomnia|pillow|night|midnight|tired|exhaust\w+|nap\w*|dream\w*|wake|waking|awake|morning)\b"), "bedroom"),
+    (R(r"\b(bed|bedroom|sleep\w*|asleep|insomnia|pillow|night|midnight|tired|exhaust\w+|nap\w*|dream\w*|wake|waking|awake)\b"), "bedroom"),
+    (R(r"\b(bank|money|cash|paid|payday|salary|paycheck|budget\w*|wallet|invest\w*|saving\w*|savings|dollars?|rent|bills?|debt)\b"), "office"),
     (R(r"\b(office|desk|laptop|email\w*|meeting\w*|boss|colleagues?|deadline\w*|job|career|procrastinat\w+|coding|code|project\w*|client\w*|freelanc\w+|productiv\w+)\b"), "office"),
     (R(r"\b(kitchen|cook\w*|food|eat\w*|meal\w*|breakfast|lunch|dinner|recipe\w*|snack\w*|sugar|diet|hungry|coffee|fridge|fruit\w*|vegetable\w*)\b"), "kitchen"),
     (R(r"\b(gym|workout\w*|exercis\w+|muscle\w*|fitness|push.?ups?|stronger|weights?)\b"), "gym"),
@@ -131,7 +134,8 @@ def choose_action(txt, expr, rng, mem):
 ENV_ROLES = {"bedroom": ["citizen", "kid"], "office": ["citizen", "engineer"], "kitchen": ["citizen", "kid"], "gym": ["citizen"], "park": ["citizen", "kid", "explorer"],
              "street": ["citizen", "kid"], "room": ["citizen", "kid"], "rooftop": ["citizen"], "classroom": ["teacher", "kid", "citizen"], "lab": ["scientist", "engineer"],
              "space": ["astronaut"], "underwater": ["diver"], "forest": ["explorer", "citizen"], "hills": ["explorer", "citizen", "kid"], "beach": ["citizen", "kid", "explorer"],
-             "desert": ["explorer"], "snow": ["explorer"], "cave": ["explorer", "geologist"], "stage": ["citizen", "teacher"]}
+             "desert": ["explorer"], "snow": ["explorer"], "cave": ["explorer", "geologist"], "stage": ["citizen", "teacher"],
+             "mind_dusk": ["citizen", "kid"], "mind_dawn": ["citizen", "kid"], "mind_calm": ["citizen", "kid"], "mind_storm": ["citizen", "kid"]}
 
 
 def choose_role(txt, rng, mem, topic, env="street"):
@@ -142,8 +146,43 @@ def choose_role(txt, rng, mem, topic, env="street"):
     return _pick_unused(rng, pool, mem["roles"], 1)
 
 
-def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="media"):
-    """-> recipe dict for one picture. `mem` (from new_memory()) is updated so the next picture differs."""
+MIND_BY_EMOTION = {"worried": "mind_dusk", "scared": "mind_storm", "sad": "mind_dusk", "angry": "mind_storm", "confused": "mind_dusk", "shocked": "mind_storm", "tired": "mind_dusk",
+                   "bored": "mind_calm", "embarrassed": "mind_dawn", "calm": "mind_calm", "determined": "mind_dawn", "hopeful": "mind_dawn", "happy": "mind_dawn", "proud": "mind_dawn",
+                   "excited": "mind_dawn", "curious": "mind_calm", "smug": "mind_calm"}
+MIND_BY_ROLE = {"hook": "mind_dusk", "problem": "mind_dusk", "definition": "mind_calm", "advice": "mind_dawn", "conclusion": "mind_dawn", "contrast": "mind_storm", "intro": "mind_calm"}
+
+
+def _names_a_place(txt):
+    """True when the words really are about a concrete place (kitchen, office, gym ...): then that place is drawn, not a mindscape."""
+    return any(rx.search(txt) for rx, _ in PLACE_WORDS if _ not in ("room",))
+
+
+def mind_env(emotion, role, rng, mem):
+    """Soft abstract backdrop whose colours carry the feeling; never the same one twice in a row."""
+    want = MIND_BY_EMOTION.get(emotion or "") or MIND_BY_ROLE.get(role or "") or "mind_calm"
+    last = mem["envs"][-1] if mem["envs"] else None
+    if want == last:
+        alt = [k for k in ("mind_dusk", "mind_dawn", "mind_calm", "mind_storm") if k != want and k not in mem["envs"][-2:]]
+        # a neighbouring mood keeps the colour story coherent: dusk <-> storm, dawn <-> calm
+        near = {"mind_dusk": "mind_storm", "mind_storm": "mind_dusk", "mind_dawn": "mind_calm", "mind_calm": "mind_dawn"}[want]
+        want = near if near in alt else (alt[0] if alt else want)
+    return want
+
+
+EMO_ACTIONS = {"worried": ["think", "panic"], "scared": ["panic"], "sad": ["sit"], "angry": ["push", "point"], "happy": ["cheer", "wave", "jump"], "proud": ["cheer"],
+               "excited": ["jump", "cheer"], "curious": ["think", "look_up"], "confused": ["think", "shrug"], "shocked": ["panic", "fall"], "tired": ["sit"], "bored": ["sit", "shrug"],
+               "embarrassed": ["shrug", "sit"], "calm": ["float", "sit"], "determined": ["push"], "hopeful": ["look_up"], "smug": ["talk", "shrug"]}
+ROLE_ACTIONS = {"hook": ["think", "look_up"], "definition": ["point", "talk"], "problem": ["think", "panic"], "contrast": ["shrug", "talk"], "advice": ["point", "talk"],
+                "conclusion": ["wave", "float"], "example": ["point"], "intro": ["wave"]}
+
+
+ENV_NATIVE = {"bedroom": ("bed", "lamp", "window", "moon"), "kitchen": ("stove", "fridge", "table", "window"), "office": ("desk", "laptop", "chair", "monitor"),
+              "classroom": ("board", "desk", "chair"), "gym": ("weights", "dumbbell"), "street": ("car", "building")}
+
+
+def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="media", hint=None):
+    """-> recipe dict for one picture. `mem` (from new_memory()) is updated so the next picture differs.
+    hint (from understand.hint): what the beat means - role, emotion, and the drawings (visual metaphors) that explain it."""
     import random
     from .director import features, make_cam_2d
     rng = random.Random(seed * 31 + qi * 7 + mem["n"])
@@ -151,27 +190,64 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
     ents = [e for e in f["ents"]]
     mood = f["mood"]
     expr = FACE_TO_EXPR.get(face, "neutral")
-    env = choose_env(txt, topic, rng, mem, f)
-    action = choose_action(txt, expr, rng, mem)
+    meta = [m for m in (hint or {}).get("metaphors", []) if m in E.ENTITY_FN]
+    env = (hint or {}).get("env") or choose_env(txt, topic, rng, mem, f)
+    if meta and not (hint or {}).get("env") and not _names_a_place(txt):
+        env = mind_env((hint or {}).get("emotion"), (hint or {}).get("role"), rng, mem)      # an IDEA is drawn in a mindscape, not in a random living room
+    meta = [m for m in meta if m not in ENV_NATIVE.get(env, ())]   # never draw a bed again inside a bedroom: the idea's drawing must add something
+    if meta:                                                       # the picture is about an IDEA: the person reacts to it, they do not wander about
+        pool = EMO_ACTIONS.get(hint.get("emotion") or "", []) or ROLE_ACTIONS.get(hint.get("role") or "", []) or ACTION_BY_EXPR.get(expr, ACTION_BY_EXPR["neutral"])
+        action = hint.get("action") or _pick_unused(rng, pool, mem["acts"], 1)
+    else:
+        action = (hint or {}).get("action") or choose_action(txt, expr, rng, mem)
+        if hint and not any(rx.search(txt) for rx, _ in ACTION_WORDS):
+            pool = EMO_ACTIONS.get(hint.get("emotion") or "", []) or ROLE_ACTIONS.get(hint.get("role") or "", [])
+            if pool:
+                action = _pick_unused(rng, pool, mem["acts"], 1)
     role = choose_role(txt, rng, mem, topic, env)
 
     # ---- which things to show: the beat's own keywords, a different one than last time when there is a choice
     named = [e for e in ents if e[0] not in ("person", "crowd")]
     fresh = [e for e in named if e[0] not in mem["ents"][-2:]]
     shown = (fresh or named)[:2]
-    ics = IC.find(txt, 6)                                      # a cartoon icon for each thing named, in the order it is said
-    if len(ics) > 1:
-        fresh_i = [i for i in ics if i[0] not in mem["icons"][-3:]]
-        ics = fresh_i if fresh_i else ics
-    ics = ics[:3]
-    if ics:
-        shown = []                                             # the icons carry the meaning; no extra vector drawing
+    if meta:                                                   # the idea's own drawing(s) are the picture; stickers only for objects the sentence really names
+        shown = [(m, m, 0.1 + 0.3 * k) for k, m in enumerate(meta[:2])]
+        ics = []
+        for w in (hint.get("icon_words") or [])[:2]:
+            r = IC.lookup(w.split()[-1])
+            if r:
+                idx_, _, _ = IC._index()
+                ics.append((r[0], idx_[r[0]][0], w, 0.5))
+    else:
+        ics = IC.find(txt, 6)                                  # a cartoon icon for each thing named, in the order it is said
+        if len(ics) > 1:
+            fresh_i = [i for i in ics if i[0] not in mem["icons"][-3:]]
+            ics = fresh_i if fresh_i else ics
+        ics = ics[:3]
+        if ics:
+            shown = []                                         # the icons carry the meaning; no extra vector drawing
+    # a thing the backdrop already contains (a bed in the bedroom ...) is not drawn a second time as a floating prop: it becomes a sticker icon instead
+    native = ENV_NATIVE.get(env, ())
+    if shown and not meta:
+        dup = [e for e in shown if e[0] in native]
+        if dup:
+            shown = [e for e in shown if e[0] not in native]
+            if not ics:
+                for e in dup[:1]:
+                    r = IC.lookup(e[0])
+                    if r:
+                        idx_, _, _ = IC._index()
+                        ics = [(r[0], idx_[r[0]][0], e[1], 0.5)]
     many = bool(PEOPLE_MANY.search(txt)) or any(e[0] == "crowd" for e in ents)
     two = bool(PEOPLE_TWO.search(txt)) and not many
 
     # ---- layout of the picture
     tpls = []
-    if ics:
+    if meta:
+        tpls = ["showcase", "pointing", "reaction"] if not many else ["crowd", "showcase", "pointing"]
+        if len(meta) == 2 or ics:
+            tpls = ["showcase", "pointing"]
+    elif ics:
         tpls = ["pointing", "solo", "showcase", "reaction"] if not many else ["crowd", "pointing", "solo"]
         if f["hook"] or action == "think":
             tpls = ["reaction", "pointing", "solo"]
@@ -185,9 +261,9 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
         tpls = ["solo", "walk", "reaction", "duo"] if not many else ["crowd", "solo", "walk"]
         if two:
             tpls = ["duo", "solo"]
-    if action in ("run", "walk"):
+    if action in ("run", "walk") and not meta:
         tpls = ["walk"] + tpls
-    if action == "sit":
+    if action == "sit" and not meta:
         tpls = ["solo", "reaction"] + tpls
     tpl = _pick_unused(rng, tpls, mem["tpls"], 2)
 
@@ -235,14 +311,14 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
         if nm in BIG_ONLY:
             size = int(size * 0.9)
         actors.append(dict(k="entity", name=nm, x=side, y=y, size=size, f_in=max(0.0, p * 0.5), motion="float", entry=rng.choice(["pop", "rise", "grow"]), label=lab,
-                           seed=rng.randrange(99), holo=nm not in SKY and tpl != "showcase"))
+                           seed=rng.randrange(99), holo=nm not in SKY and tpl != "showcase" and not meta))
     if ics:
         cx = actors[0]["x"] if actors else 0.5
         lo, hi = (0.40, 0.92) if cx < 0.5 else (0.08, 0.60)
         if tpl == "crowd":
             lo, hi = 0.1, 0.9
         n = len(ics)
-        size = {1: 520, 2: 390, 3: 320}[n]
+        size = {1: 400, 2: 330, 3: 280}[n]
         cmp_ = bool(K.COMPARE.search(txt)) and n >= 2
         for k, (hx, lab, w, pos) in enumerate(ics):
             x = (lo + hi) / 2 if n == 1 else lo + (hi - lo) * (k + 0.5) / n
