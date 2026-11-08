@@ -19,7 +19,7 @@ on:
         description: "Narrator delivery: 0.7 calm, 1.2 lively, 1.6 over the top"
         default: "1.2"
       voice:
-        description: "gemini (natural, emotional Gemini voice; falls back to kokoro), voicestudio (Voice Studio, speaks in your voice sample), kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
+        description: "voicestudio (Voice Studio, speaks in YOUR voice sample, slow), gemini (natural, emotional Gemini voice, not your voice; falls back to kokoro), kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
         default: "gemini"
       audio:
         description: "Optional: your own narration recording in the repo, e.g. audio/my-video.mp3 (replaces the voice above)"
