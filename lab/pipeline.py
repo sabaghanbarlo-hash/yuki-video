@@ -72,6 +72,8 @@ def voice(plan, args, tmp):
     tmp = Path(tmp); (tmp / "voice").mkdir(parents=True, exist_ok=True)
     if getattr(args, "audio", None):
         return align_upload(args.audio, [s["spoken"] for _, _, s in sents], tmp)
+    if args.tts == "gemini":
+        return voice_gemini(sents, args, tmp)
     out = []
     for n, (sc, i, s) in enumerate(sents):
         key = hashlib.md5(f"v3|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
@@ -79,17 +81,49 @@ def voice(plan, args, tmp):
         if f.exists() and not getattr(args, "audio_dir", None):
             out.append(np.load(f)); continue
         print(f"  voicing {n + 1}/{len(sents)}", flush=True)
-        ctx = None
-        if args.tts == "gemini":                                          # the acting note: what the sentence does + the feeling it carries
-            from . import gemini_tts as G
-            role, emo, strength = G.feeling(s["spoken"], first=(n == 0), last=(n == len(sents) - 1))
-            ctx = dict(role=role, emotion=emo, strength=strength)
-        a = A.synth(s["spoken"], args, n, tmp, emotion=s["mood"], ctx=ctx)
+        a = A.synth(s["spoken"], args, n, tmp, emotion=s["mood"])
         a = np.asarray(a, np.float32)
-        if not (args.tts == "gemini" and A.FALLBACK.get("used")):          # fallback audio is never cached: a later run tries Gemini again
-            np.save(f, a)
+        np.save(f, a)
         out.append(a)
     return out
+
+
+def voice_gemini(sents, args, tmp):
+    """Natural, acted narration from Gemini, one voice for the whole video.
+    Every sentence is directed from the story role + feeling (lab/gemini_tts.py) and cached.  The free tier has a small daily quota: if it cannot
+    voice EVERY sentence, the whole video is voiced with the fallback voice (one coherent voice, never two mixed), and the sentences Gemini already
+    did stay cached, so running the same script again after the quota resets only has to fetch the missing ones."""
+    from . import gemini_tts as G
+    out, missing = [], 0
+    for n, (sc, i, s) in enumerate(sents):
+        key = hashlib.md5(f"g1|{getattr(args, 'voice', '')}|{s['spoken']}".encode()).hexdigest()[:16]
+        f = tmp / "voice" / f"{key}.npy"
+        if f.exists():
+            out.append(np.load(f)); continue
+        role, emo, strength = G.feeling(s["spoken"], first=(n == 0), last=(n == len(sents) - 1))
+        print(f"  voicing {n + 1}/{len(sents)}  ({emo or role})", flush=True)
+        a = A.synth_gemini_only(s["spoken"], args, dict(role=role, emotion=emo, strength=strength))
+        if a is None:
+            missing += 1
+            out.append(None)
+            continue
+        np.save(f, a)
+        out.append(a)
+    if not missing:
+        return out
+    done = len(sents) - missing
+    print(f"  [gemini] voiced {done}/{len(sents)} sentences ({G.STATE['why'] or 'unavailable'}). They are saved: run the same script again after the daily quota resets "
+          f"(midnight US Pacific, about 11:30 in Tehran) to get the full Gemini voice.  For now the whole video uses the fallback voice so it stays consistent.", flush=True)
+    fb = []
+    for n, (sc, i, s) in enumerate(sents):
+        key = hashlib.md5(f"fb1|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
+        f = tmp / "voice" / f"{key}.npy"
+        if f.exists():
+            fb.append(np.load(f)); continue
+        a = np.asarray(A._fallback_voice(s["spoken"], args, tmp, s["mood"]), np.float32)
+        np.save(f, a)
+        fb.append(a)
+    return fb
 
 
 def align_upload(path, spoken, tmp):

@@ -305,6 +305,13 @@ def _fallback_voice(text, args, tmp, emotion):
         return synth_edge(text, "en-US-AriaNeural", "-4%", tmp)
 
 
+def synth_gemini_only(text, args, ctx=None):
+    """Gemini audio or None (no fallback): the pipeline decides what to do when some sentences cannot be voiced."""
+    from . import gemini_tts as G
+    a = G.synth(text, getattr(args, "voice", None), ctx)
+    return None if a is None else trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9))
+
+
 def synth_gemini(text, args, tmp, emotion=None, ctx=None):
     from . import gemini_tts as G
     a = G.synth(text, getattr(args, "voice", None), ctx)

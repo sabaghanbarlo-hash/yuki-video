@@ -107,6 +107,14 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-kokoro-v1
 
+      - name: Cache finished Gemini sentences (a re-run after the free quota resets only fetches the missing ones)
+        if: ${{ github.event.inputs.voice == 'gemini' && github.event.inputs.audio == '' }}
+        uses: actions/cache@v4
+        with:
+          path: .work
+          key: gemini-sentences-${{ github.run_id }}
+          restore-keys: gemini-sentences-
+
       - name: Install Voice Studio (voicestudio only)
         if: ${{ github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
         run: |

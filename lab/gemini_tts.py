@@ -24,7 +24,7 @@ VOICES = {"Leda": "youthful", "Aoede": "breezy", "Sulafat": "warm", "Zephyr": "b
           "Kore": "firm", "Puck": "upbeat", "Charon": "informative", "Fenrir": "excitable", "Orus": "firm"}
 FALLBACK_MODELS = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", "gemini-2.5-pro-preview-tts"]
 
-STATE = dict(models=None, dead=False, why="", calls=0, fails=0)
+STATE = dict(models=None, dead=False, why="", calls=0, fails=0, spent=set())
 
 BASE = "like a real young woman chatting to a friend: natural and human, never like a presenter or an announcer, with varied pitch, a natural rhythm and small pauses"
 
@@ -123,9 +123,8 @@ def models():
             out = found
         except Exception as e:
             print(f"  [gemini] could not list models ({type(e).__name__}); trying the usual names", flush=True)
-    for m in FALLBACK_MODELS:
-        if m not in out:
-            out.append(m)
+    if not out:                                                       # listing failed or showed nothing: the usual names
+        out = list(FALLBACK_MODELS)
     STATE["models"] = out
     return out
 
@@ -164,6 +163,8 @@ def synth(text, voice=None, ctx=None, max_wait=75):
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}}}
     STATE["calls"] += 1
     for model in models():
+        if model in STATE["spent"]:
+            continue
         for attempt in range(4):
             try:
                 a = _pcm(_call("POST", f"models/{model}:generateContent", body))
@@ -175,9 +176,13 @@ def synth(text, voice=None, ctx=None, max_wait=75):
                 err = e.read().decode("utf-8", "replace")[:900]
                 if e.code == 429:
                     if re.search(r"per ?day|daily|PerDay", err, re.I) and not re.search(r"PerMinute", err, re.I):
-                        STATE.update(dead=True, why="daily quota used up")
-                        print("  [gemini] daily free quota is used up: the remaining sentences use the fallback voice (re-run later to upgrade them)", flush=True)
-                        return None
+                        STATE["spent"].add(model)                    # every speech model has its own daily quota: try the next model
+                        print(f"  [gemini] daily free quota of {model} is used up", flush=True)
+                        if all(m in STATE["spent"] for m in models()):
+                            STATE.update(dead=True, why="daily quota used up (all speech models)")
+                            print("  [gemini] every speech model's daily free quota is used up", flush=True)
+                            return None
+                        break
                     wait = (_retry_delay(err) or 20) + 1.5
                     if wait > max_wait:
                         break
