@@ -109,22 +109,29 @@ def _call(method, path, body=None, timeout=90):
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
+def _rank(name):
+    """Best first: newest version, full-size flash before lite, flash before pro, stable before preview."""
+    m = re.search(r"gemini-(\d+(?:\.\d+)?)", name)
+    ver = float(m.group(1)) if m else 0.0
+    return (("lite" in name), ("pro" in name), -ver, ("preview" in name), name)
+
+
 def models():
-    """TTS-capable models this key can use, best first (flash before pro)."""
+    """TTS-capable models this key can use, in the order they are tried (each model has its own free daily quota, so spare ones are used when one runs out).
+    YUKI_GEMINI_TTS_MODEL pins one model as the first choice."""
     if STATE["models"] is not None:
         return STATE["models"]
+    found = []
+    try:
+        d = _call("GET", "models?pageSize=200", timeout=30)
+        found = [m["name"].split("/")[-1] for m in d.get("models", []) if "tts" in m.get("name", "") and "generateContent" in m.get("supportedGenerationMethods", ["generateContent"])]
+        found.sort(key=_rank)
+    except Exception as e:
+        print(f"  [gemini] could not list models ({type(e).__name__}); trying the usual names", flush=True)
+    if not found:
+        found = list(FALLBACK_MODELS)
     forced = os.environ.get("YUKI_GEMINI_TTS_MODEL")
-    out = [forced] if forced else []
-    if not forced:
-        try:
-            d = _call("GET", "models?pageSize=200", timeout=30)
-            found = [m["name"].split("/")[-1] for m in d.get("models", []) if "tts" in m.get("name", "") and "generateContent" in m.get("supportedGenerationMethods", ["generateContent"])]
-            found.sort(key=lambda n: (("pro" in n), ("preview" in n) is False, n))
-            out = found
-        except Exception as e:
-            print(f"  [gemini] could not list models ({type(e).__name__}); trying the usual names", flush=True)
-    if not out:                                                       # listing failed or showed nothing: the usual names
-        out = list(FALLBACK_MODELS)
+    out = ([forced] if forced else []) + [m for m in found if m != forced]
     STATE["models"] = out
     return out
 
