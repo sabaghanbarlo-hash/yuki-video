@@ -20,7 +20,7 @@ on:
         default: "1.2"
       voice:
         description: "voicestudio (Voice Studio, speaks in YOUR voice sample, slow), gemini (natural, emotional Gemini voice, not your voice; falls back to kokoro), kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
-        default: "gemini"
+        default: "voicestudio"
       audio:
         description: "Optional: your own narration recording in the repo, e.g. audio/my-video.mp3 (replaces the voice above)"
         default: ""
