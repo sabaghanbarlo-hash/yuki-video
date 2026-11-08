@@ -74,14 +74,20 @@ def voice(plan, args, tmp):
         return align_upload(args.audio, [s["spoken"] for _, _, s in sents], tmp)
     out = []
     for n, (sc, i, s) in enumerate(sents):
-        key = hashlib.md5(f"v2|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
+        key = hashlib.md5(f"v3|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
         f = tmp / "voice" / f"{key}.npy"
         if f.exists() and not getattr(args, "audio_dir", None):
             out.append(np.load(f)); continue
         print(f"  voicing {n + 1}/{len(sents)}", flush=True)
-        a = A.synth(s["spoken"], args, n, tmp, emotion=s["mood"])
+        ctx = None
+        if args.tts == "gemini":                                          # the acting note: what the sentence does + the feeling it carries
+            from . import gemini_tts as G
+            role, emo, strength = G.feeling(s["spoken"], first=(n == 0), last=(n == len(sents) - 1))
+            ctx = dict(role=role, emotion=emo, strength=strength)
+        a = A.synth(s["spoken"], args, n, tmp, emotion=s["mood"], ctx=ctx)
         a = np.asarray(a, np.float32)
-        np.save(f, a)
+        if not (args.tts == "gemini" and A.FALLBACK.get("used")):          # fallback audio is never cached: a later run tries Gemini again
+            np.save(f, a)
         out.append(a)
     return out
 

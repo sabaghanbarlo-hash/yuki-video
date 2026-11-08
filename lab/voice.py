@@ -265,6 +265,15 @@ def synth_character(text, info, args, tmp, emotion=None):
             pool = KOKORO_F if info["gender"] == "F" else KOKORO_M
             v = pool[(pool.index(v) + 1) % len(pool)] if v in pool else pool[0]
         return synth_kokoro(text, v, 1.0, tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
+    if args.tts == "gemini":                                         # supporting characters: their own Gemini voice (never the narrator's), Kokoro if Gemini is unavailable
+        from . import gemini_tts as G
+        pool = ["Aoede", "Zephyr", "Achernar"] if info["gender"] == "F" else ["Puck", "Charon", "Orus"]
+        pool = [v for v in pool if v != getattr(args, "voice", None)]
+        a = G.synth(text, pool[sum(map(ord, info.get("voice", "x"))) % len(pool)], dict(role="example", emotion=emotion, strength=1.0 if emotion else 0.0))
+        if a is not None:
+            return trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9))
+        v = info.get("kvoice") or (KOKORO_F if info["gender"] == "F" else KOKORO_M)[0]
+        return synth_kokoro(text, v, 1.0, tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
     if args.tts in ("edge", "clone"):
         return synth_edge(text, info["voice"], "+0%", tmp, info["pitch"])
     if args.tts == "babble":
@@ -278,8 +287,35 @@ def silent_words(text):
     return silence(max(1.4, len(text.split()) / 2.6))
 
 
-def synth(text, args, idx, tmp, emotion=None):
-    """Return mono float32 audio at SR for one beat."""
+FALLBACK = dict(used=False)       # set when the last gemini sentence had to use the fallback voice (the pipeline then does not cache it)
+
+
+def _fallback_voice(text, args, tmp, emotion):
+    """Kokoro (the voice matched to the user's sample), else Microsoft edge, when Gemini cannot answer."""
+    import json as _json
+    kv = "af_bella"
+    try:
+        kv = _json.loads((Path(__file__).resolve().parent.parent / "voice" / "match.json").read_text()).get("kokoro_voice") or kv
+    except Exception:
+        pass
+    try:
+        return synth_kokoro(text, kv, getattr(args, "speed", 1.0), tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
+    except Exception as e:
+        print(f"  [voice] kokoro fallback failed ({type(e).__name__}); trying edge", flush=True)
+        return synth_edge(text, "en-US-AriaNeural", "-4%", tmp)
+
+
+def synth_gemini(text, args, tmp, emotion=None, ctx=None):
+    from . import gemini_tts as G
+    a = G.synth(text, getattr(args, "voice", None), ctx)
+    FALLBACK["used"] = a is None
+    if a is None:
+        return _fallback_voice(text, args, tmp, emotion)
+    return trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9))
+
+
+def synth(text, args, idx, tmp, emotion=None, ctx=None):
+    """Return mono float32 audio at SR for one beat.  ctx (role/emotion/strength) tells the gemini voice how to act the sentence."""
     if args.audio_dir:
         for ext in ("wav", "mp3", "m4a", "ogg", "flac"):
             f = Path(args.audio_dir) / f"{idx + 1:03d}.{ext}"
@@ -289,6 +325,8 @@ def synth(text, args, idx, tmp, emotion=None):
                     to_wav(cand, Path(tmp) / "x.wav")
                     return trim(read_wav(Path(tmp) / "x.wav"))
         raise SystemExit(f"Missing recording for beat {idx + 1} in {args.audio_dir} (expected {idx + 1:03d}.wav/.mp3)")
+    if args.tts == "gemini":
+        return synth_gemini(text, args, tmp, emotion=emotion, ctx=ctx)
     if args.tts == "kokoro":
         return synth_kokoro(text, args.voice, getattr(args, "speed", 1.0), tmp, emotion=emotion, expressive=getattr(args, "expressive", True), energy=getattr(args, "energy", 1.2))
     if args.tts == "edge":

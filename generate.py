@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Yuki Lab: paste a script, get a finished animated science video (narration, scenes, subtitles, sound) as an MP4.
 
+    python generate.py scripts/sample.txt --tts gemini           # natural, emotional Gemini voice (needs GEMINI_API_KEY); falls back to Kokoro
     python generate.py scripts/sample.txt                        # Kokoro voice matched to yours (voice/match.json)
     python generate.py scripts/sample.txt --tts edge             # Microsoft voices (needs internet)
     python generate.py scripts/sample.txt --tts clone            # your cloned voice (voice/ref.*), slow on CPU
@@ -23,7 +24,7 @@ sys.path.insert(0, str(HERE))
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("script")
-    ap.add_argument("--tts", default="kokoro", choices=["kokoro", "voicestudio", "edge", "clone", "babble", "none"])
+    ap.add_argument("--tts", default="kokoro", choices=["gemini", "kokoro", "voicestudio", "edge", "clone", "babble", "none"])
     ap.add_argument("--voice", default=None, help="voice name (default: the voice matched to yours in voice/match.json)")
     ap.add_argument("--pitch", default=None)
     ap.add_argument("--rate", default=None)
@@ -52,7 +53,11 @@ def main():
             match = json.loads(mp.read_text())
         except Exception:
             match = {}
-    if args.tts == "kokoro":
+    if args.tts == "gemini":
+        import os
+        args.voice = args.voice or os.environ.get("YUKI_GEMINI_VOICE") or "Leda"          # a Gemini voice name (Leda, Aoede, Sulafat ...)
+        args.speed = float(match.get("speed", 1.0))
+    elif args.tts == "kokoro":
         args.voice = args.voice or match.get("kokoro_voice") or "af_bella"
         args.speed = float(match.get("speed", 1.0))
     else:

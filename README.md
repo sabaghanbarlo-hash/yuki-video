@@ -64,6 +64,11 @@ Cue keys: `style` (flat/voxel/toon), `env` (space, ocean, underwater, volcano, c
 
 ## Voice
 
+* `gemini` (default in the workflow): a natural, emotional voice from Google's Gemini speech model (free tier, repository secret `GEMINI_API_KEY`).
+  Every sentence is *directed* like an actor from what it does in the story (hook, problem, advice, conclusion) and the feeling it carries (worry, relief,
+  pride ... negation aware), the same reading that picks Yuki's face.  Run **Gemini voice test** to hear several voices and set the repository variable
+  `YUKI_GEMINI_VOICE` (default `Leda`).  The free speech quota is small: when it runs out (or Gemini is unreachable) the rest of the sentences use the Kokoro
+  voice, are not cached, and a later re-run upgrades them.
 * `voicestudio`: [Voice Studio](https://github.com/debpalash/VoiceStudio) (OmniVoice engine, free, runs on the CPU). It speaks in the voice of `voice/ref.*` (put the exact words said in `voice/ref.txt` for best results, otherwise Whisper reads them). Higher quality than Kokoro but slow: about 4 minutes per sentence on a GitHub runner, so a 40-sentence script needs roughly 3 hours. Note: no subtitles are burned into the video.
 * `kokoro` (default): free open-source voice picked to be closest to your sample (`voice/match.json`, re-run *Match my voice* after replacing `voice/ref.*`),
   with the storyteller delivery layer (`lab/expressive.py`).
