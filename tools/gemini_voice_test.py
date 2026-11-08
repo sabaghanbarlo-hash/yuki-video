@@ -23,5 +23,19 @@ for v in [x.strip() for x in os.environ.get("VOICES", "Leda").split(",") if x.st
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(G.SR); w.writeframes((np.clip(a, -1, 1) * 32767).astype(np.int16).tobytes())
         ok += 1
         print(f"  {v}/{tag}: {len(a) / G.SR:.1f}s  ({emo or role})")
+# the same two lines with the first voice on other speech models (newer models may sound more natural): compare by ear, then set YUKI_GEMINI_TTS_MODEL
+first_voice = os.environ.get("VOICES", "Leda").split(",")[0].strip() or "Leda"
+for m in [x.strip() for x in os.environ.get("MODELS", "").split(",") if x.strip()]:
+    G.STATE.update(models=[m], dead=False, fails=0)
+    for i, (tag, text) in enumerate(LINES):
+        role, emo, st = G.feeling(text, first=(i == 0), last=(i == len(LINES) - 1))
+        a = G.synth(text, first_voice, dict(role=role, emotion=emo, strength=st))
+        if a is None:
+            print(f"  [{m}] {first_voice}/{tag}: no audio ({G.STATE['why'] or 'failed'})")
+            continue
+        with wave.open(str(out / f"model-{m}-{first_voice}-{tag}.wav"), "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(G.SR); w.writeframes((np.clip(a, -1, 1) * 32767).astype(np.int16).tobytes())
+        ok += 1
+        print(f"  [{m}] {first_voice}/{tag}: {len(a) / G.SR:.1f}s")
 print(f"{ok} clip(s) written")
 sys.exit(0 if ok else 1)

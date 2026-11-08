@@ -2,13 +2,16 @@ name: Gemini voice test
 
 # Checks that the GEMINI_API_KEY secret works and lets you HEAR the voices: the same two lines (one worried, one relieved) in several Gemini voices.
 # Costs only a handful of free-tier speech requests. Listen to the files in the "gemini-voices" artifact, then set the repository variable
-# YUKI_GEMINI_VOICE (Settings -> Secrets and variables -> Actions -> Variables) to the voice you like.
+# YUKI_GEMINI_VOICE (and YUKI_GEMINI_TTS_MODEL for the speech model) (Settings -> Secrets and variables -> Actions -> Variables) to the voice you like.
 on:
   workflow_dispatch:
     inputs:
       voices:
         description: "Comma separated Gemini voices to try"
         default: "Leda,Aoede,Sulafat"
+      models:
+        description: "Also compare these speech models (first voice above, both lines); empty = skip"
+        default: "gemini-3.8-flash-tts,gemini-3.1-flash-tts-preview"
 
 permissions:
   contents: read
@@ -20,6 +23,7 @@ jobs:
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       VOICES: ${{ github.event.inputs.voices }}
+      MODELS: ${{ github.event.inputs.models }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

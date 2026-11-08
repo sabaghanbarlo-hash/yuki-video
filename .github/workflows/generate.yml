@@ -54,6 +54,7 @@ jobs:
       PRIVACY: ${{ github.event.inputs.privacy }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       YUKI_GEMINI_VOICE: ${{ vars.YUKI_GEMINI_VOICE }}
+      YUKI_GEMINI_TTS_MODEL: ${{ vars.YUKI_GEMINI_TTS_MODEL }}
     steps:
       - uses: actions/checkout@v4
 
