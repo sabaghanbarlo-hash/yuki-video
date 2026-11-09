@@ -180,9 +180,9 @@ def _voicestudio(ref):
     return _VS["m"]
 
 
-PACE = 1.16
+PACE = 1.05              # barely above the model's own pace: no 'sped up' sound
 SYL_SEC = 0.150          # natural, lively speech: about 6.5 syllables a second
-MAX_SLOW = 1.12          # a phrase may run at most 12% longer than that before it is sped up
+MAX_SLOW = 1.30          # a take that runs more than 30% longer than natural speech is re-recorded
 
 
 def _syllables(t):
@@ -215,23 +215,21 @@ def _phrases(sent):
     return out or [sent]
 
 
-def _even_pace(a, text, tmp):
-    """Real speech has an even rhythm.  When the model dragged a phrase out (a word held far longer than the rest), speed that phrase up, keeping the pitch."""
-    want = _syllables(text) * SYL_SEC
+def _too_slow(a, text):
+    return len(a) / SR > max(0.6, _syllables(text) * SYL_SEC * MAX_SLOW)
+
+
+def _gentle(a, text, tmp):
+    """Last resort after several takes: ease a still-dragging phrase by at most 10% (no audible speed-up)."""
+    want = _syllables(text) * SYL_SEC * MAX_SLOW
     dur = len(a) / SR
-    if dur <= want * MAX_SLOW or dur < 0.5:
+    if dur <= want or dur < 0.6:
         return a
-    rate = min(1.7, dur / (want * MAX_SLOW))
+    rate = min(1.10, dur / want)
     src, dst = Path(tmp) / "pace_in.wav", Path(tmp) / "pace_out.wav"
     write_wav(src, a)
-    chain = []
-    r = rate
-    while r > 2.0:
-        chain.append("atempo=2.0"); r /= 2.0
-    chain.append(f"atempo={r:.4f}")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-filter:a", ",".join(chain), "-ar", str(SR), "-ac", "1", str(dst)], check=True)
-    out = read_wav(dst)
-    return out
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-filter:a", f"atempo={rate:.4f}", "-ar", str(SR), "-ac", "1", str(dst)], check=True)
+    return read_wav(dst)
 
 
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
@@ -258,29 +256,39 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
         phr = _phrases(sent)
         for n, ph in enumerate(phr):
             spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
-            key = hashlib.md5(f"v5|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
+            key = hashlib.md5(f"v6|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
             f = cache / f"{key}.wav"
             if not f.exists():
-                import torchaudio
+                import torch, torchaudio
                 m = _voicestudio(ref)
                 kw = dict(text=spoken, language="en", num_step=steps, speed=sp)
                 if ref:
                     kw["voice_clone_prompt"] = _VS["prompt"]
                 else:
                     kw["instruct"] = instruct
-                wav = m.generate(**kw)[0]
-                raw = cache / f"{key}_raw.wav"
-                torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
-                to_wav(raw, f)
-                raw.unlink(missing_ok=True)
-            a = VP.polish(read_wav(f))
-            a = _even_pace(a, ph, tmp)
+                best = None
+                for take in range(4):                                  # a take with a dragged word is simply recorded again, like an actor would
+                    torch.manual_seed(1000 * take + int(key[:6], 16) % 997)
+                    wav = m.generate(**kw)[0].detach().cpu().reshape(1, -1)
+                    raw = cache / f"{key}_raw.wav"
+                    torchaudio.save(str(raw), wav, m.sampling_rate)
+                    to_wav(raw, cache / f"{key}_take.wav")
+                    raw.unlink(missing_ok=True)
+                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"))
+                    if best is None or len(cand) < len(best):
+                        best = cand
+                    if not _too_slow(cand, ph):
+                        best = cand
+                        break
+                (cache / f"{key}_take.wav").unlink(missing_ok=True)
+                write_wav(f, best)
+            a = _gentle(read_wav(f), ph, tmp)
             a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
             pieces.append(a)
             if n < len(phr) - 1:
                 pieces.append(silence(0.09 if ph.endswith(",") else 0.14))      # a breath between phrases
         gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
-        pieces.append(silence(gap * 0.7))
+        pieces.append(silence(gap * 0.9))
         prev_words = words
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
