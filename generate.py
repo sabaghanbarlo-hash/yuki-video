@@ -37,7 +37,7 @@ def main():
     ap.add_argument("--audio", default=None, help="one recording of the whole narration (mp3/wav/m4a); used instead of a synthetic voice")
     ap.add_argument("--audio-dir", default=None, help="folder with 001.wav, 002.wav ... one recording per sentence")
     ap.add_argument("--style", default=None, choices=["flat", "voxel", "toon", "collage"], help="force one visual style for every scene (collage = Yuki + changing pictures)")
-    ap.add_argument("--media", default="auto", choices=["auto", "ai", "stock", "local", "drawn"], help="collage pictures: auto (yours > AI > stock > drawn), ai, stock, local (media/ folder only) or drawn (offline)")
+    ap.add_argument("--media", default="drawn", choices=["auto", "ai", "stock", "local", "drawn"], help="collage pictures: auto (yours > AI > stock > drawn), ai, stock, local (media/ folder only) or drawn (offline)")
     ap.add_argument("--seed", type=int, default=0, help="change it to get a different arrangement of the same script")
     ap.add_argument("--max-scenes", type=int)
     ap.add_argument("--workers", type=int, default=None)
@@ -56,10 +56,10 @@ def main():
     if args.tts == "gemini":
         import os
         args.voice = args.voice or os.environ.get("YUKI_GEMINI_VOICE") or "Leda"          # a Gemini voice name (Leda, Aoede, Sulafat ...)
-        args.speed = float(match.get("speed", 1.0))
+        args.speed = float(match.get("speed", 1.0)) * 1.1
     elif args.tts == "kokoro":
         args.voice = args.voice or match.get("kokoro_voice") or "af_bella"
-        args.speed = float(match.get("speed", 1.0))
+        args.speed = float(match.get("speed", 1.0)) * 1.1
     else:
         args.voice = args.voice or match.get("voice") or "en-US-AriaNeural"
     args.pitch = args.pitch or match.get("pitch") or "+0Hz"

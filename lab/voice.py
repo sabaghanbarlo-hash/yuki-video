@@ -180,6 +180,9 @@ def _voicestudio(ref):
     return _VS["m"]
 
 
+PACE = 1.16
+
+
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
     """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
     Sentence by sentence; finished sentences are cached on disk."""
@@ -194,7 +197,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
         ref = VP.pick_ref(ref0, sm) if ref0 else None
         rid = _file_md5(ref)[:10] if ref else "design"
         words = len(sent.split())
-        sp = float(speed) * cfg["speed"]
+        sp = float(speed) * cfg["speed"] * PACE          # PACE: the narrator talks a bit quicker than the model's natural pace
         if sent.endswith("!"):
             sp *= 1.03
         if words <= 3 and prev_words >= 8 and sent.endswith((".", "!")):     # short punchline after a long line: slower, deadpan
@@ -219,7 +222,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
             raw.unlink(missing_ok=True)
         a = VP.gain_db(VP.polish(read_wav(f)), cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
         gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
-        pieces += [a, silence(gap)]
+        pieces += [a, silence(gap * 0.7)]                               # shorter pauses between sentences
         prev_words = words
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
