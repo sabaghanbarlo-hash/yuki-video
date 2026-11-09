@@ -304,7 +304,7 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
             elif reuse and st["layout"] in ("full", "mid", "center", "fullbleed"):
                 layout = st["layout"]
             else:
-                layout = _pick(rng, ["full", "mid", "center", "fullbleed"], [3.0, 2.6, 1.0, 0.7], avoid_lay)
+                layout = _pick(rng, ["full", "mid", "center", "fullbleed"], [4.4, 1.6, 0.5, 1.6], avoid_lay)   # the lab's own animation is the star: big panels
             side = (get("side") or "").lower()[:1]
             if side not in ("l", "r"):
                 side = ("l" if st["side"] == "r" else "r") if rng.random() < 0.78 else st["side"]
