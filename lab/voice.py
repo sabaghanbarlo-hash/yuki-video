@@ -180,8 +180,8 @@ def _voicestudio(ref):
     return _VS["m"]
 
 
-PACE = 1.05              # barely above the model's own pace: no 'sped up' sound
-SYL_SEC = 0.150          # natural, lively speech: about 6.5 syllables a second
+PACE = 0.98              # barely above the model's own pace: no 'sped up' sound
+SYL_SEC = 0.160          # natural, lively speech: about 6.5 syllables a second
 MAX_SLOW = 1.30          # a take that runs more than 30% longer than natural speech is re-recorded
 
 
