@@ -181,11 +181,62 @@ def _voicestudio(ref):
 
 
 PACE = 1.16
+SYL_SEC = 0.150          # natural, lively speech: about 6.5 syllables a second
+MAX_SLOW = 1.12          # a phrase may run at most 12% longer than that before it is sped up
+
+
+def _syllables(t):
+    n = 0
+    for w in re.findall(r"[A-Za-z']+", t):
+        g = len(re.findall(r"[aeiouy]+", w.lower()))
+        if w.lower().endswith("e") and g > 1 and not w.lower().endswith(("le", "ee")):
+            g -= 1
+        n += max(1, g)
+    return max(1, n)
+
+
+def _phrases(sent):
+    """Split a sentence at commas, colons, dashes ... into short phrases (a model drifts into stretched words on long runs)."""
+    parts = [p.strip() for p in re.split(r"(?<=[,;:])\s+|\s+[-\u2013\u2014]+\s+", sent) if p.strip()]
+    long_ = []
+    for p in parts:                                              # a long run without a comma: break it before a conjunction
+        w = p.split()
+        cut = next((i for i in range(4, len(w) - 3) if w[i].lower() in ("to", "and", "but", "because", "so", "when", "while", "that", "which", "or")), None) if len(w) > 11 else None
+        long_ += [" ".join(w[:cut]), " ".join(w[cut:])] if cut else [p]
+    parts, out = long_, []
+    for p in parts:                                              # never leave a one- or two-word crumb on its own
+        if out and len(p.split()) < 3:
+            out[-1] += " " + p
+        else:
+            out.append(p)
+    if len(out) > 1 and len(out[0].split()) < 3:
+        out[1] = out[0] + " " + out[1]
+        out = out[1:]
+    return out or [sent]
+
+
+def _even_pace(a, text, tmp):
+    """Real speech has an even rhythm.  When the model dragged a phrase out (a word held far longer than the rest), speed that phrase up, keeping the pitch."""
+    want = _syllables(text) * SYL_SEC
+    dur = len(a) / SR
+    if dur <= want * MAX_SLOW or dur < 0.5:
+        return a
+    rate = min(1.7, dur / (want * MAX_SLOW))
+    src, dst = Path(tmp) / "pace_in.wav", Path(tmp) / "pace_out.wav"
+    write_wav(src, a)
+    chain = []
+    r = rate
+    while r > 2.0:
+        chain.append("atempo=2.0"); r /= 2.0
+    chain.append(f"atempo={r:.4f}")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-filter:a", ",".join(chain), "-ar", str(SR), "-ac", "1", str(dst)], check=True)
+    out = read_wav(dst)
+    return out
 
 
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
     """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
-    Sentence by sentence; finished sentences are cached on disk."""
+    Every sentence is spoken phrase by phrase and each phrase is brought to an even, natural pace.  Finished phrases are cached on disk."""
     from . import expressive as E
     cache = Path(tmp) / "vs_cache"
     cache.mkdir(parents=True, exist_ok=True)
@@ -197,32 +248,39 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
         ref = VP.pick_ref(ref0, sm) if ref0 else None
         rid = _file_md5(ref)[:10] if ref else "design"
         words = len(sent.split())
-        sp = float(speed) * cfg["speed"] * PACE          # PACE: the narrator talks a bit quicker than the model's natural pace
+        sp = float(speed) * max(1.0, cfg["speed"]) * PACE          # a sad line may rest in its pauses, but its words are never dragged
         if sent.endswith("!"):
             sp *= 1.03
-        if words <= 3 and prev_words >= 8 and sent.endswith((".", "!")):     # short punchline after a long line: slower, deadpan
-            sp *= 0.9
-        sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)                    # no two lines at exactly the same pace
+        if words <= 3 and prev_words >= 8 and sent.endswith((".", "!")):     # short punchline after a long line: slightly slower, deadpan
+            sp *= 0.95
+        sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)
         pre, suf = E.vocal_tag(sent, sm, k)
-        spoken = pre + sent + suf
-        key = hashlib.md5(f"v4|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
-        f = cache / f"{key}.wav"
-        if not f.exists():
-            import torchaudio
-            m = _voicestudio(ref)
-            kw = dict(text=spoken, language="en", num_step=steps, speed=sp)
-            if ref:
-                kw["voice_clone_prompt"] = _VS["prompt"]
-            else:
-                kw["instruct"] = instruct
-            wav = m.generate(**kw)[0]
-            raw = cache / f"{key}_raw.wav"
-            torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
-            to_wav(raw, f)
-            raw.unlink(missing_ok=True)
-        a = VP.gain_db(VP.polish(read_wav(f)), cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
+        phr = _phrases(sent)
+        for n, ph in enumerate(phr):
+            spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
+            key = hashlib.md5(f"v5|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
+            f = cache / f"{key}.wav"
+            if not f.exists():
+                import torchaudio
+                m = _voicestudio(ref)
+                kw = dict(text=spoken, language="en", num_step=steps, speed=sp)
+                if ref:
+                    kw["voice_clone_prompt"] = _VS["prompt"]
+                else:
+                    kw["instruct"] = instruct
+                wav = m.generate(**kw)[0]
+                raw = cache / f"{key}_raw.wav"
+                torchaudio.save(str(raw), wav.detach().cpu().reshape(1, -1), m.sampling_rate)
+                to_wav(raw, f)
+                raw.unlink(missing_ok=True)
+            a = VP.polish(read_wav(f))
+            a = _even_pace(a, ph, tmp)
+            a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
+            pieces.append(a)
+            if n < len(phr) - 1:
+                pieces.append(silence(0.09 if ph.endswith(",") else 0.14))      # a breath between phrases
         gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
-        pieces += [a, silence(gap * 0.7)]                               # shorter pauses between sentences
+        pieces.append(silence(gap * 0.7))
         prev_words = words
     return np.concatenate(pieces[:-1]) if pieces else silence(0.5)
 
