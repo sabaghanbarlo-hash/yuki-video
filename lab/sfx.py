@@ -418,12 +418,20 @@ def music_lofi(seconds, mood="calm", bpm=78, seed=3):
         kick = _tone(np.linspace(120, 45, int(0.18 * SR)), 0.18) * np.exp(-_t(0.18) * 22) * 0.6             # soft kick
         for b_ in (0, 2.5):
             _mix(out, kick, at + b_ * beat)
-        hat = _band(_noise(0.05), 6000, 11000) * np.exp(-_t(0.05) * 70) * 0.10                            # tiny closed hat
-        for b_ in np.arange(0.5, 4, 1.0):
-            _mix(out, hat, at + b_ * beat + 0.012)
+        for b_ in np.arange(0.5, 4, 1.0):                                                                   # a soft woody tick instead of a noisy hat
+            _mix(out, _epiano(1800, 0.06, 0.05), at + b_ * beat + 0.012)
     d = int(beat * 0.75 * SR)                                                                         # a soft echo makes it roomy
     out[d:] += out[:-d] * 0.28
-    return (out[: int(seconds * SR)] / (np.abs(out).max() + 1e-6)).astype(np.float32)
+    out = out[: int(seconds * SR)]
+    for _ in range(2):                                                                                # two one-pole low-passes: warm, nothing hissy above ~4 kHz
+        a_ = 0.45
+        out = _lp(out, a_)
+    return (out / (np.abs(out).max() + 1e-6)).astype(np.float32)
+
+
+def _lp(x, a):
+    k = a * (1 - a) ** np.arange(48)                                   # one-pole low-pass as a short exponential kernel (no scipy needed)
+    return np.convolve(x, k.astype(np.float32))[: len(x)].astype(np.float32)
 
 
 def _mix(out, seg, at):

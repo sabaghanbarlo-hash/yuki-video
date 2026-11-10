@@ -257,6 +257,27 @@ def _put(out, x, at, gain=1.0):
     out[i:i + len(seg)] += seg
 
 
+def clean_voice(x):
+    """Take the hiss and rumble out of the narration (the voice model leaves a faint noise floor between and under words).
+    High-pass for rumble, a soft downward gate that quiets the floor between words without touching speech, low-pass for hiss. Returns x unchanged if ffmpeg fails."""
+    import tempfile, wave
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            src, dst = os.path.join(d, "v.wav"), os.path.join(d, "c.wav")
+            pcm = (np.clip(x, -1, 1) * 32767).astype("<i2")
+            with wave.open(src, "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", src, "-af", "highpass=f=85,agate=threshold=0.035:ratio=9000:range=0.22:attack=6:release=120,lowpass=f=11000", dst], check=True)
+            with wave.open(dst, "rb") as w:
+                y = np.frombuffer(w.readframes(w.getnframes()), "<i2").astype(np.float32) / 32768
+        if len(y) >= len(x):
+            return y[: len(x)]
+        return np.pad(y, (0, len(x) - len(y)))
+    except Exception as e:
+        print(f"  [mix] voice clean-up skipped ({type(e).__name__})", flush=True)
+        return x
+
+
 def mix(plan, sent_audio, total):
     n = int(total * SR) + SR
     voice_t = np.zeros(n, np.float32)
@@ -267,6 +288,7 @@ def mix(plan, sent_audio, total):
     peak = np.abs(voice_t).max()
     if peak > 0:
         voice_t = voice_t / peak * 0.86
+    voice_t = clean_voice(voice_t)
     fx = np.zeros(n, np.float32)
     amb = np.zeros(n, np.float32)
     last_t = -9
@@ -312,11 +334,13 @@ def mix(plan, sent_audio, total):
     w = int(0.3 * SR)
     env = np.convolve(env, np.ones(w, np.float32) / w, mode="same")
     env = np.clip(env / 0.08, 0, 1)
-    duck = 1.0 - 0.72 * env
+    w2 = int(0.7 * SR)
+    env = np.convolve(env, np.ones(w2, np.float32) / w2, mode="same")             # slow release: the music swells back gently, no pumping
+    duck = 1.0 - 0.62 * np.clip(env * 1.6, 0, 1)
     fade = np.ones(n, np.float32)
     f_in, f_out = int(1.5 * SR), int(2.0 * SR)
     fade[:f_in] = np.linspace(0, 1, f_in); fade[int(total * SR) - f_out:int(total * SR)] = np.linspace(1, 0, f_out); fade[int(total * SR):] = 0
-    out = voice_t + fx + mus * 0.26 * duck * fade
+    out = voice_t + fx + mus * 0.17 * duck * fade
     pk = np.abs(out).max()
     if pk > 0.95:
         out = np.tanh(out / pk * 1.1) / np.tanh(1.1) * 0.95
