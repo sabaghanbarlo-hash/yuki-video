@@ -16,16 +16,15 @@ HOP = int(0.010 * SR)          # 10 ms analysis frames
 
 # mood -> speed multiplier, gap after sentence (s), loudness (dB), reference clip suffix
 MOODS = {
-    "neutral":  dict(speed=1.00, gap=0.16, db=0.0,  ref="neutral", pitch=0.0),
-    "happy":    dict(speed=1.04, gap=0.13, db=0.5,  ref="happy",   pitch=0.9),
-    "excited":  dict(speed=1.08, gap=0.09, db=1.5,  ref="excited", pitch=1.5),
-    "wonder":   dict(speed=0.98, gap=0.20, db=0.3,  ref="calm",    pitch=0.5),
-    "curious":  dict(speed=1.00, gap=0.18, db=0.0,  ref="calm",    pitch=0.6),
-    "shocked":  dict(speed=1.05, gap=0.12, db=1.0,  ref="excited", pitch=1.3),
-    "worried":  dict(speed=1.00, gap=0.18, db=-0.3, ref="serious", pitch=0.3),
-    "sad":      dict(speed=0.95, gap=0.26, db=-1.5, ref="serious", pitch=-1.1),
-    "angry":    dict(speed=1.05, gap=0.10, db=2.0,  ref="excited", pitch=-0.3),
-    "calm":     dict(speed=0.97, gap=0.22, db=-0.6, ref="calm",    pitch=-0.5),
+    "neutral":  dict(speed=1.00, gap=0.16, db=0.0,  ref="neutral"),
+    "happy":    dict(speed=1.04, gap=0.13, db=0.5,  ref="happy"),
+    "excited":  dict(speed=1.10, gap=0.09, db=1.5,  ref="excited"),
+    "wonder":   dict(speed=0.98, gap=0.20, db=0.3,  ref="calm"),
+    "curious":  dict(speed=1.00, gap=0.18, db=0.0,  ref="calm"),
+    "shocked":  dict(speed=1.06, gap=0.12, db=1.0,  ref="excited"),
+    "worried":  dict(speed=1.00, gap=0.18, db=-0.3, ref="serious"),
+    "sad":      dict(speed=0.93, gap=0.26, db=-1.5, ref="serious"),
+    "angry":    dict(speed=1.06, gap=0.10, db=2.0,  ref="excited"),
 }
 
 

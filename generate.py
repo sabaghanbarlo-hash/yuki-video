@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--flat-voice", action="store_true")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.*)")
     ap.add_argument("--exaggeration", type=float, default=0.5)
-    ap.add_argument("--steps", type=int, default=24, help="Voice Studio quality steps (more = better, slower)")
+    ap.add_argument("--steps", type=int, default=16, help="Voice Studio quality steps (more = better, slower)")
     ap.add_argument("--cfg", type=float, default=0.5)
     ap.add_argument("--audio", default=None, help="one recording of the whole narration (mp3/wav/m4a); used instead of a synthetic voice")
     ap.add_argument("--audio-dir", default=None, help="folder with 001.wav, 002.wav ... one recording per sentence")

@@ -215,59 +215,6 @@ def _phrases(sent):
     return out or [sent]
 
 
-EMO_TO_MOOD = {"worried": "worried", "scared": "worried", "sad": "sad", "tired": "sad", "angry": "angry", "happy": "happy", "proud": "happy", "hopeful": "happy",
-               "excited": "excited", "curious": "curious", "confused": "curious", "shocked": "shocked", "calm": "calm", "determined": "neutral", "smug": "happy",
-               "embarrassed": "worried", "bored": "calm"}
-
-
-def _mood_of(sent, beat_mood):
-    """The feeling of one sentence: the same reading that picks Yuki's face (negation aware), else the punctuation/keyword reading."""
-    from . import expressive as E, gemini_tts as G
-    base = E.sentence_mood(sent, beat_mood or "neutral")
-    try:
-        _role, emo, strength = G.feeling(sent)
-        if emo in EMO_TO_MOOD and strength >= 0.8:
-            return EMO_TO_MOOD[emo]
-    except Exception:
-        pass
-    return base
-
-
-def _pitch(a, semitones, tmp):
-    """Lift or lower the voice a touch (formants kept, so it is still her voice).  Skipped when ffmpeg has no rubberband."""
-    if abs(semitones) < 0.15 or len(a) < SR * 0.2:
-        return a
-    src, dst = Path(tmp) / "pitch_in.wav", Path(tmp) / "pitch_out.wav"
-    write_wav(src, a)
-    r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-filter:a", f"rubberband=pitch={2 ** (semitones / 12):.4f}:formant=preserved:transients=smooth",
-                        "-ar", str(SR), "-ac", "1", str(dst)], capture_output=True)
-    return read_wav(dst) if r.returncode == 0 and dst.exists() else a
-
-
-_ASR = {}
-
-
-def _words_of(t):
-    return re.findall(r"[a-z0-9']+", t.lower().replace("\u2019", "'"))
-
-
-def _asr_score(a, text):
-    """How much of the written phrase the recording really says (0..1) - catches mispronounced, swallowed or invented words.  None if no recogniser."""
-    try:
-        if "p" not in _ASR:
-            from transformers import pipeline
-            _ASR["p"] = pipeline("automatic-speech-recognition", model="openai/whisper-small", device="cpu")
-        x = np.interp(np.arange(0, len(a), SR / 16000), np.arange(len(a)), a).astype(np.float32)
-        heard = _ASR["p"]({"raw": x, "sampling_rate": 16000}, generate_kwargs={"language": "en", "task": "transcribe"})["text"]
-        import difflib
-        return difflib.SequenceMatcher(None, _words_of(text), _words_of(heard)).ratio()
-    except Exception as e:
-        if not _ASR.get("warned"):
-            print(f"  [voice] no speech check available ({type(e).__name__}); skipping it", flush=True)
-            _ASR["warned"] = True
-        return None
-
-
 def _too_slow(a, text):
     return len(a) / SR > max(0.6, _syllables(text) * SYL_SEC * MAX_SLOW)
 
@@ -294,7 +241,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
     ref0 = ref if ref and Path(ref).exists() else None
     pieces, prev_words = [], 0
     for k, sent in enumerate(VP.split_sentences(text)):
-        sm = _mood_of(sent, emotion)                               # every sentence has its own feeling
+        sm = E.sentence_mood(sent, emotion or "neutral")          # every sentence has its own feeling
         cfg = VP.mood_cfg(sm)
         ref = VP.pick_ref(ref0, sm) if ref0 else None
         rid = _file_md5(ref)[:10] if ref else "design"
@@ -309,7 +256,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
         phr = _phrases(sent)
         for n, ph in enumerate(phr):
             spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
-            key = hashlib.md5(f"v7|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
+            key = hashlib.md5(f"v6|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
             f = cache / f"{key}.wav"
             if not f.exists():
                 import torch, torchaudio
@@ -319,8 +266,8 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                     kw["voice_clone_prompt"] = _VS["prompt"]
                 else:
                     kw["instruct"] = instruct
-                best, best_q = None, -9.0
-                for take in range(5):                                  # a take with a dragged or mispronounced word is simply recorded again, like an actor would
+                best = None
+                for take in range(4):                                  # a take with a dragged word is simply recorded again, like an actor would
                     torch.manual_seed(1000 * take + int(key[:6], 16) % 997)
                     wav = m.generate(**kw)[0].detach().cpu().reshape(1, -1)
                     raw = cache / f"{key}_raw.wav"
@@ -328,17 +275,14 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                     to_wav(raw, cache / f"{key}_take.wav")
                     raw.unlink(missing_ok=True)
                     cand = VP.polish(read_wav(cache / f"{key}_take.wav"))
-                    said = _asr_score(cand, ph)
-                    slow = _too_slow(cand, ph)
-                    q = (said if said is not None else 0.95) - (0.25 if slow else 0.0)
-                    if q > best_q:
-                        best, best_q = cand, q
-                    if q >= 0.9:
+                    if best is None or len(cand) < len(best):
+                        best = cand
+                    if not _too_slow(cand, ph):
+                        best = cand
                         break
-                print(f"  [voice] phrase {k + 1}.{n + 1}: quality {best_q:.2f} after {take + 1} take(s)", flush=True)
                 (cache / f"{key}_take.wav").unlink(missing_ok=True)
                 write_wav(f, best)
-            a = _pitch(_gentle(read_wav(f), ph, tmp), cfg.get("pitch", 0.0) * (1.0 if n == 0 else 0.7), tmp)
+            a = _gentle(read_wav(f), ph, tmp)
             a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
             pieces.append(a)
             if n < len(phr) - 1:
