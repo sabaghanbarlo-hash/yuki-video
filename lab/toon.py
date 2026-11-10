@@ -306,9 +306,9 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
 
 # ------------------------------------------------------------------ details
 def _face(cv, Hh, S, L, expr, mouth, t, seed, P):
-    u0 = 11.0
+    u0 = 5.0
     ex = {"shocked": 1.2, "worried": 1.0, "curious": 1.05}.get(expr, 1.0)
-    rx, ry = 13.5 * S * ex, 15.5 * S * ex
+    rx, ry = 12.5 * S * ex, 14.5 * S * ex
     blink = ((t + (seed % 7) * 0.37) % 3.7) < 0.13 and expr != "shocked"
     lx, ly = P["look"]
     pr = (6.2 if expr != "shocked" else 4.4) * S
