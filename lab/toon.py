@@ -389,9 +389,9 @@ def _hair_back(cv, L, Hh, hrad, hr, S, role, tilt):
     if st == "afro":
         cv.circle(c[0], c[1] - 2 * Sh, hrad * 1.28, col)
     elif st == "long":
-        cv.poly([Hh(-40, -10), Hh(-52, 60), Hh(-30, 88), Hh(8, 82), Hh(14, 20)], shade(col, -0.1))
+        cv.poly([Hh(-36, -20), Hh(-50, 10), Hh(-52, 52), Hh(-40, 80), Hh(-16, 86), Hh(4, 72), Hh(10, 30), Hh(0, -6)], shade(col, -0.1))
     elif st == "bob":
-        cv.circle(c[0] - 4 * Sh, c[1] + 6 * Sh, hrad * 1.1, shade(col, -0.1))
+        cv.circle(c[0] - 3 * Sh, c[1] + 3 * Sh, hrad * 1.05, shade(col, -0.1))
     elif st == "bun":
         b = Hh(-14, -58); cv.circle(b[0], b[1], 17 * Sh, col)
 
@@ -400,7 +400,7 @@ def _hair_front(cv, L, Hh, Sh, role, tilt):
     if role in ("astronaut", "robot") or L["hairstyle"] == "bald":
         return
     st, col = L["hairstyle"], L["hair"]
-    r = 47.5 * (L["head"])
+    r = 49.0 * (L["head"])                      # a hair's breadth bigger than the head: the cap hugs it with no skin gap
     arc = [Hh(r * math.cos(math.radians(a)), r * math.sin(math.radians(a))) for a in range(165, 376, 14)]
     if st == "afro":
         fr = [Hh(44, -2), Hh(30, -24), Hh(10, -30), Hh(-10, -22), Hh(-32, -8), Hh(-46, 8)]

@@ -145,14 +145,26 @@ def _qbez(p0, p1, p2, n=10):
 
 
 # ================================================================== HEAD LAYERS
-def _bell(cv, bottom, fill, long=False):
+def _bell(cv, bottom, fill, long=False, x0=34, tuck=0):
+    """The hair mass behind the head.  x0 = how far it reaches out at the sides; tuck = how far the bottom curls in under the jaw."""
     inset = 8 if long else 22
     top_y = 150
     L = []
-    L += _bez((34, top_y), (30, top_y + 56), (30, bottom - 90), (34 + inset * .5, bottom - 52), 16)
-    L += _bez((34 + inset * .5, bottom - 52), (36 + inset, bottom - 14), (60 + inset, bottom + 2), (104, bottom + 2), 14)
+    L += _bez((x0, top_y), (x0 - 4, top_y + 56), (x0 - 4, bottom - 90), (x0 + inset * .5, bottom - 52), 16)
+    L += _bez((x0 + inset * .5, bottom - 52), (x0 + 2 + inset, bottom - 14), (x0 + 26 + inset + tuck, bottom + 2), (104 + tuck, bottom + 2), 14)
     R = [(400 - x, y) for x, y in L]
     cv.poly(L + R[::-1], fill)
+
+
+def _side_locks(cv, fill):
+    """Two locks that come down from the fringe along the face edge and curl in at the jaw: the hair frames the face instead of floating round it."""
+    for sgn in (1, -1):
+        def X(x):
+            return x if sgn == 1 else 400 - x
+        pts = _bez((X(84), 150), (X(70), 200), (X(76), 262), (X(104), 296), 14)
+        pts += _bez((X(104), 296), (X(118), 300), (X(122), 284), (X(116), 262), 8)
+        pts += _bez((X(116), 262), (X(110), 224), (X(110), 190), (X(126), 156), 10)
+        cv.poly(pts, fill)
 
 
 @functools.lru_cache(maxsize=8)
@@ -160,12 +172,13 @@ def _base_layer(look, s):
     """Hair + face + fringe, with a soft shadow under the fringe."""
     cv = Cv(0, 0, HW, HH, s)
     H_, SK = look.hair, look.skin
-    bottom = {"bob": 314, "long": 372, "boy": 250, "bun": 300}[look.style]
-    cv.ell((34, 22, 366, 300), H_)
+    bottom = {"bob": 306, "long": 372, "boy": 250, "bun": 300}[look.style]
+    bob = look.style == "bob"
+    cv.ell((50, 24, 350, 296) if bob else (34, 22, 366, 300), H_)
     if look.style == "boy":
         cv.rrect((40, 150, 360, 250), 40, H_)
     else:
-        _bell(cv, bottom, H_, long=(look.style == "long"))
+        _bell(cv, bottom, H_, long=(look.style == "long"), x0=50 if bob else 34, tuck=10 if bob else 0)
     if look.style == "bun":
         cv.ell((152, -6, 248, 54), H_)
     cv.ell((82, 104, 318, 318), SK)
@@ -184,7 +197,7 @@ def _base_layer(look, s):
     sh.im.putalpha(a)
     cv.im.alpha_composite(sh.im)
     # fringe: dome + a row of soft scallops (boys: a flat swoosh)
-    cx, cy, a_, b_ = 200, 161, 166, 139
+    cx, cy, a_, b_ = 200, 161, (150 if bob else 166), 139
     cv.poly([(cx + a_ * math.cos(math.radians(t)), cy + b_ * math.sin(math.radians(t))) for t in range(180, 361, 4)], H_)
     if look.style == "boy":
         cv.poly([(60, 150), (340, 150), (330, 176), (280, 192), (230, 172), (190, 186), (140, 176), (80, 190), (64, 176)], H_)
@@ -192,10 +205,12 @@ def _base_layer(look, s):
         for x in (96, 138, 180, 220, 262, 304):
             cv.ell((x - 26, SROW - 26, x + 26, SROW + 26), H_)
         cv.rect((62, 142, 338, 160), H_)
+    if bob:
+        _side_locks(cv, H_)
     if sum(look.hair) < 260 and look.style != "boy":
         g = tuple(min(255, c + 30) for c in look.hair)
-        cv.arc((70, 40, 250, 150), 200, 262, g, 9)
-        cv.arc((86, 56, 236, 140), 205, 255, g, 5)
+        cv.arc((92, 56, 252, 156), 205, 262, g, 8)
+        cv.arc((106, 72, 238, 146), 208, 255, g, 4)
     if look.clip:
         cv.ell((270, 44, 306, 80), look.clip)
         cv.ell((281, 55, 295, 69), CLIP_C)
