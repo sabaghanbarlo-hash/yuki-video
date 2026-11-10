@@ -271,9 +271,7 @@ def mix(plan, sent_audio, total):
     amb = np.zeros(n, np.float32)
     last_t = -9
     for si, sc in enumerate(plan["scenes"]):
-        if sc["kind"] == "body":
-            a = S.ambience(sc["env"], (sc["t1"] - sc["t0"]) + 1.6)
-            _put(amb, a, max(0, sc["t0"] - 0.8), 0.5)
+        # (no noise bed under the voice any more: it sounded like hiss. The music bed and the effects carry the atmosphere)
         if si > 0:
             nm = {"flash": "impact", "zoom": "whoosh_low", "iris": "pop", "fade": None}.get(sc["transition"], "whoosh")
             g = S.get(nm) if nm else None
@@ -286,13 +284,13 @@ def mix(plan, sent_audio, total):
             g = S.get(nm)
             if g is None or at - last_t < 0.6:
                 continue
-            _put(fx, g, at, 0.30 * ev.get("gain", 1.0))
+            _put(fx, g, at, 0.36 * ev.get("gain", 1.0))
             last_t = at
         for sh in sc["shots"]:
             if sc["kind"] == "body" and sc["style"] == "collage" and sh.get("cut_sfx") and sh["t0"] > sc["t0"] + 0.2:
                 g = S.get(sh["cut_sfx"])
                 if g is not None:
-                    _put(fx, g, max(0, sh["t0"] - 0.02), 0.14)
+                    _put(fx, g, max(0, sh["t0"] - 0.02), 0.20)
             tpl = sh.get("template")
             if sc["kind"] == "body" and tpl in ("stat", "timeline", "question", "pair", "process"):
                 g = S.get("pop" if tpl != "stat" else "ding")
@@ -305,18 +303,20 @@ def mix(plan, sent_audio, total):
                     off = 1.7 if ev["name"] == "meteor" else 0.0
                     _put(fx, g, sh["t0"] + ev["f"] * (sh["t1"] - sh["t0"]) + off, 0.4)
     # music bed ducked under the voice
-    mus = S.music(total + 1, "calm")
+    from collections import Counter
+    mood_c = Counter(sc.get("mood") or "neutral" for sc in plan["scenes"] if sc.get("kind") == "body")
+    mus = S.music_lofi(total + 1, (mood_c.most_common(1) or [("calm", 1)])[0][0])
     mus = np.resize(mus, n).astype(np.float32)
     mus = mus / (np.abs(mus).max() + 1e-6)
     env = np.abs(voice_t)
     w = int(0.3 * SR)
     env = np.convolve(env, np.ones(w, np.float32) / w, mode="same")
     env = np.clip(env / 0.08, 0, 1)
-    duck = 1.0 - 0.7 * env
+    duck = 1.0 - 0.72 * env
     fade = np.ones(n, np.float32)
     f_in, f_out = int(1.5 * SR), int(2.0 * SR)
     fade[:f_in] = np.linspace(0, 1, f_in); fade[int(total * SR) - f_out:int(total * SR)] = np.linspace(1, 0, f_out); fade[int(total * SR):] = 0
-    out = voice_t + fx + amb * 0.55 + mus * 0.15 * duck * fade
+    out = voice_t + fx + mus * 0.26 * duck * fade
     pk = np.abs(out).max()
     if pk > 0.95:
         out = np.tanh(out / pk * 1.1) / np.tanh(1.1) * 0.95

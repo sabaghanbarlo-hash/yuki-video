@@ -372,6 +372,60 @@ def music(seconds, style="story"):
     return out[: int(seconds * SR)]
 
 
+# ---------------------------------------------------------------- warm lo-fi music bed (soft electric-piano chords, bass, light beat; no noise)
+_PROG = {
+    "bright": [(0, "maj7"), (9, "m7"), (5, "maj7"), (7, "dom7")],          # I  vi  IV  V
+    "calm":   [(0, "maj7"), (5, "maj7"), (9, "m7"), (7, "dom7")],          # I  IV  vi  V
+    "dark":   [(9, "m7"), (5, "maj7"), (0, "maj7"), (7, "dom7")],          # vi IV  I   V   (reads minor)
+    "sad":    [(9, "m7"), (2, "m7"), (5, "maj7"), (4, "dom7")],            # vi ii  IV  iii/V
+}
+_CH = {"maj7": (0, 4, 7, 11), "m7": (0, 3, 7, 10), "dom7": (0, 4, 7, 10)}
+_MOOD_STYLE = {"sad": "sad", "worried": "dark", "scared": "dark", "angry": "dark", "tired": "sad", "happy": "bright", "excited": "bright", "proud": "bright",
+               "hopeful": "bright", "curious": "calm", "calm": "calm", "neutral": "calm", "wonder": "calm"}
+
+
+def _epiano(freq, sec, vel=1.0):
+    """A soft electric piano note: a sine with two quiet overtones, a tiny bell on the attack, a slow decay."""
+    t = _t(sec)
+    x = np.sin(2 * np.pi * freq * t) + 0.32 * np.sin(2 * np.pi * freq * 2 * t) * np.exp(-t * 3.0) + 0.12 * np.sin(2 * np.pi * freq * 3.01 * t) * np.exp(-t * 6.0)
+    e = np.minimum(1, t / 0.006) * np.exp(-t * 1.7) * np.minimum(1, (sec - t) / 0.12)
+    return (x * e * vel).astype(np.float32)
+
+
+def music_lofi(seconds, mood="calm", bpm=78, seed=3):
+    style = _MOOD_STYLE.get(mood, "calm")
+    r = np.random.default_rng(seed)
+    beat = 60 / bpm
+    bar = beat * 4
+    n = int(seconds * SR) + SR
+    out = np.zeros(n, np.float32)
+    root = 130.81 if style in ("bright", "calm") else 110.0                  # C3 or A2
+    prog = _PROG[style]
+    nbars = int(seconds / bar) + 2
+    for i in range(nbars):
+        at = i * bar
+        off, kind = prog[i % 4]
+        base = root * 2 ** (off / 12)
+        notes = [base * 2 ** (k / 12) for k in _CH[kind]]
+        for k, f in enumerate(notes):                                          # chord, gently rolled (not all at once)
+            _mix(out, _epiano(f * 2, bar * 0.98, 0.34 - 0.03 * k), at + k * 0.022)
+        _mix(out, _epiano(base / 2 * 2, beat * 1.8, 0.55), at)                  # bass on the one
+        _mix(out, _epiano(base / 2 * 2, beat * 1.4, 0.40), at + beat * 2.5)
+        pat = [(1.5, 3), (2.0, 2), (3.0, 1), (3.5, 2)] if i % 2 == 0 else [(1.0, 1), (1.5, 2), (2.5, 3), (3.5, 1)]     # a little tune on top
+        for b_, ni in pat:
+            if r.random() < 0.8:
+                _mix(out, _epiano(notes[ni] * 4, beat * 1.1, 0.20), at + b_ * beat + r.uniform(-0.012, 0.012))
+        kick = _tone(np.linspace(120, 45, int(0.18 * SR)), 0.18) * np.exp(-_t(0.18) * 22) * 0.6             # soft kick
+        for b_ in (0, 2.5):
+            _mix(out, kick, at + b_ * beat)
+        hat = _band(_noise(0.05), 6000, 11000) * np.exp(-_t(0.05) * 70) * 0.10                            # tiny closed hat
+        for b_ in np.arange(0.5, 4, 1.0):
+            _mix(out, hat, at + b_ * beat + 0.012)
+    d = int(beat * 0.75 * SR)                                                                         # a soft echo makes it roomy
+    out[d:] += out[:-d] * 0.28
+    return (out[: int(seconds * SR)] / (np.abs(out).max() + 1e-6)).astype(np.float32)
+
+
 def _mix(out, seg, at):
     i = int(at * SR)
     if i >= len(out):

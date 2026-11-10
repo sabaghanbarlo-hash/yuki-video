@@ -281,7 +281,7 @@ def build_scene(idx, raw: RawScene, prev, rng, force_style=None):
 
 
 def sound_cues(sents, rng, scene):
-    out, last = [], None
+    out, last, last_emo = [], None, -9
     for si, s in enumerate(sents):
         found = []
         for rx, name in K.SFX_RULES:
@@ -294,6 +294,15 @@ def sound_cues(sents, rng, scene):
                 continue
             out.append(dict(sent=si, frac=frac, name=name, gain=0.9))
             last = name
+        if not found and si - last_emo >= 3:                                   # the feeling of a line can have its own little sound
+            try:
+                from . import understand as U
+                emo, strength, _n = U.feeling_of(s["text"])
+                nm = {"shocked": "gasp", "sad": "sigh", "tired": "sigh", "proud": "tada", "excited": "sparkle", "embarrassed": "boing", "confused": "boing"}.get(emo)
+                if nm and strength >= 1.0 and nm != last:
+                    out.append(dict(sent=si, frac=0.05, name=nm, gain=0.8)); last = nm; last_emo = si
+            except Exception:
+                pass
         for (pos, key, val) in s["inline"]:
             if key == "sfx":
                 out.append(dict(sent=si, frac=pos / max(1, len(s["text"])), name=val.strip().lower().replace(" ", "_"), gain=1.0))
