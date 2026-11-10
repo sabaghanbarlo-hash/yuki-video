@@ -511,10 +511,15 @@ def _body_layer(phase_q, look, s):
         sw = -swing if side == "L" else swing
         foot_x = hx + sw * 26
         lift = max(0.0, sw) * 20
-        cv.line([(hx, 520), (foot_x, 626 - lift)], LEG, 38)
         fx_, fy_ = foot_x, 626 - lift
-        cv.ell((fx_ - 30, fy_ - 6, fx_ + 30, fy_ + 30), look.shoes)
-        cv.ell((fx_ - 20, fy_ - 2, fx_ + 4, fy_ + 8), tuple(min(255, c + 52) for c in look.shoes))
+        cv.line([(hx, 520), ((hx + fx_) / 2, 572)], LEG, 40)                      # thigh
+        cv.line([((hx + fx_) / 2, 572), (fx_, fy_ - 4)], LEG, 33)                 # calf, a little slimmer toward the ankle
+        cv.ell((hx - 20, 566 - 0, hx + 20, 566 + 0), LEG)
+        sole = (236, 232, 226)
+        cv.ell((fx_ - 31, fy_ + 2, fx_ + 33, fy_ + 31), sole)                      # white sole
+        cv.ell((fx_ - 30, fy_ - 8, fx_ + 32, fy_ + 24), look.shoes)                # shoe body, toe pointing right
+        cv.ell((fx_ - 19, fy_ - 4, fx_ + 5, fy_ + 6), tuple(min(255, c + 52) for c in look.shoes))
+        cv.rect((fx_ - 14, fy_ - 12, fx_ + 14, fy_ - 2), LEG)                      # ankle meets the shoe
     cv.ell((170, 326, 310, 384), look.top_d)                                     # hood bunched behind the neck
     cv.rrect((152, 340, 328, 480), 46, look.top)                                 # torso
     cv.poly([(188, 424), (292, 424), (304, 462), (176, 462)], look.top_d)        # pocket
@@ -522,7 +527,14 @@ def _body_layer(phase_q, look, s):
         cv.line([(x0, 358), (x1, 428)], CREAM, 3)
         cv.ell((x1 - 5, 424, x1 + 5, 438), CREAM)
     if look.skirt:
-        cv.poly([(160, 466), (320, 466), (350, 536), (130, 536)], look.bottom)
+        L = _bez((160, 466), (150, 490), (138, 516), (128, 540), 10)                # sides curve out: a real A-line
+        R = [(480 - x, y) for x, y in L]
+        hem = [(128 + (352 - 128) * i / 12, 540 + 7 * math.sin(i / 12 * math.pi * 3)) for i in range(13)]          # wavy hem
+        cv.poly(L + hem + R[::-1], look.bottom)
+        pl = shade(look.bottom, 0.8)
+        for x_top, x_bot in ((190, 168), (222, 208), (258, 272), (290, 312)):          # pleats
+            cv.line([(x_top, 470), (x_bot, 536)], pl, 3)
+        cv.line([(142, 528), (338, 528)], shade(look.bottom, 1.18), 3)                  # hem stitch
     else:
         cv.rrect((166, 466, 314, 548), 30, look.bottom)
     if look.scarf:
@@ -633,6 +645,13 @@ def _arm_layer(side, a_q, b_q, hand, look, s):
         cv.capsule((ex, ey), (wx, wy), 29 + grow, col)
         cv.ell((sx - 18 - grow / 2, sy - 18 - grow / 2, sx + 18 + grow / 2, sy + 18 + grow / 2), col)
         cv.ell((ex - 15 - grow / 2, ey - 15 - grow / 2, ex + 15 + grow / 2, ey + 15 + grow / 2), col)
+    # soft light along the arm and two fabric creases at the elbow: the sleeve reads as cloth, not as a pipe
+    hl = shade(sl, 1.12)
+    nx_, ny_ = (ey - sy), -(ex - sx)
+    nl = math.hypot(nx_, ny_) or 1.0
+    cv.line([(sx + nx_ / nl * 9, sy + ny_ / nl * 9 + 6), (ex + nx_ / nl * 8, ey + ny_ / nl * 8)], hl, 5)
+    for k_ in (-6, 6):
+        cv.line([(ex - 12, ey + k_ - 3), (ex + 12, ey + k_ + 3)], shade(sl, 0.86), 2.4)
     # ribbed cuff
     cv.capsule((wx - ux * 9, wy - uy * 9), (wx + ux * 1.5, wy + uy * 1.5), 27, look.top_d)
     _draw_hand(cv, hand, (wx, wy), (ux, uy), side, look.skin)
