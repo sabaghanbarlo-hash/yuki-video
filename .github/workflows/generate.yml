@@ -130,9 +130,9 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-voicestudio-v1
 
-      - name: Cache finished sentences (voicestudio)
+      - name: Restore finished sentences (voicestudio)
         if: ${{ github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .work
           key: vs-sentences-${{ github.run_id }}
@@ -151,15 +151,16 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-chatterbox-v1
 
-      - name: Cache finished sentences (so a re-run does not start over)
+      - name: Restore finished sentences (clone)
         if: ${{ github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .work
           key: clone-sentences-${{ github.run_id }}
           restore-keys: clone-sentences-
 
       - name: Render
+        timeout-minutes: 325
         run: |
           mkdir -p output
           name=$(basename "${SCRIPT%.txt}")
@@ -178,6 +179,24 @@ jobs:
             python -u generate.py "$SCRIPT" --tts "$VOICE" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           fi
           ls -la output
+
+      - name: Save finished sentences (voicestudio)
+        if: ${{ always() && github.event.inputs.voice == 'voicestudio' && github.event.inputs.audio == '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .work
+          key: vs-sentences-${{ github.run_id }}
+
+      - name: Save finished sentences (clone)
+        if: ${{ always() && github.event.inputs.voice == 'clone' && github.event.inputs.audio == '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .work
+          key: clone-sentences-${{ github.run_id }}
+
+      - name: Ran out of time? Just run it again
+        if: ${{ failure() }}
+        run: echo "::warning::The render stopped (probably the 6 hour limit). Finished sentences were saved - run this workflow again with the SAME inputs and it picks up where it stopped."
 
       - name: Make the thumbnail
         continue-on-error: true
