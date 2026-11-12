@@ -30,9 +30,16 @@ on:
       privacy:
         description: "YouTube visibility: private, unlisted or public"
         default: "private"
+      auto_continue:
+        description: "Long script? If the 6 hour limit is hit, start the next run automatically (true/false)"
+        default: "true"
+      attempt:
+        description: "Leave as 1. Used by the automatic continuation to count its runs"
+        default: "1"
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: render
@@ -160,23 +167,29 @@ jobs:
           restore-keys: clone-sentences-
 
       - name: Render
-        timeout-minutes: 325
+        timeout-minutes: 335
         run: |
+          gen() {
+            local rc=0
+            timeout 19000 python -u generate.py "$@" || rc=$?
+            if [ "$rc" = 124 ]; then touch "$RUNNER_TEMP/timed_out"; echo "::warning::Time limit reached - finished sentences will be saved."; fi
+            return $rc
+          }
           mkdir -p output
           name=$(basename "${SCRIPT%.txt}")
           STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
           STYLE_ARG="$STYLE_ARG --media ${MEDIA:-drawn}"
           if [ -n "$AUDIO" ]; then
-            python -u generate.py "$SCRIPT" --audio "$AUDIO" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+            gen "$SCRIPT" --audio "$AUDIO" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           elif [ "$VOICE" = "voicestudio" ]; then
             REF=""; if ls voice/ref.* >/dev/null 2>&1; then src=$(ls voice/ref.* | grep -v '\.txt$' | head -1); ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"; REF="--ref $RUNNER_TEMP/ref.wav"; fi
-            python -u generate.py "$SCRIPT" --tts voicestudio $REF --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+            gen "$SCRIPT" --tts voicestudio $REF --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           elif [ "$VOICE" = "clone" ]; then
             src=$(ls voice/ref.* | head -1)
             ffmpeg -y -v error -i "$src" -t 30 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
-            python -u generate.py "$SCRIPT" --tts clone --ref "$RUNNER_TEMP/ref.wav" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+            gen "$SCRIPT" --tts clone --ref "$RUNNER_TEMP/ref.wav" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           else
-            python -u generate.py "$SCRIPT" --tts "$VOICE" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
+            gen "$SCRIPT" --tts "$VOICE" --energy "$ENERGY" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           fi
           ls -la output
 
@@ -194,9 +207,34 @@ jobs:
           path: .work
           key: clone-sentences-${{ github.run_id }}
 
-      - name: Ran out of time? Just run it again
-        if: ${{ failure() }}
-        run: echo "::warning::The render stopped (probably the 6 hour limit). Finished sentences were saved - run this workflow again with the SAME inputs and it picks up where it stopped."
+      - name: Continue automatically (long scripts)
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO: ${{ github.event.inputs.auto_continue }}
+          ATTEMPT: ${{ github.event.inputs.attempt }}
+          MAX_ATTEMPTS: "8"
+          IN_SCRIPT: ${{ github.event.inputs.script }}
+          IN_STYLE: ${{ github.event.inputs.style }}
+          IN_MEDIA: ${{ github.event.inputs.media }}
+          IN_SEED: ${{ github.event.inputs.seed }}
+          IN_ENERGY: ${{ github.event.inputs.energy }}
+          IN_VOICE: ${{ github.event.inputs.voice }}
+          IN_AUDIO: ${{ github.event.inputs.audio }}
+          IN_UPLOAD: ${{ github.event.inputs.upload }}
+          IN_PRIVACY: ${{ github.event.inputs.privacy }}
+        run: |
+          if [ ! -f "$RUNNER_TEMP/timed_out" ]; then echo "Finished or stopped for another reason - nothing to continue."; exit 0; fi
+          if [ "$AUTO" = "false" ]; then echo "::warning::Time limit reached. Auto-continue is off: run again with the same inputs."; exit 0; fi
+          [[ "$ATTEMPT" =~ ^[0-9]+$ ]] || ATTEMPT=1
+          next=$((ATTEMPT + 1))
+          if [ "$next" -gt "$MAX_ATTEMPTS" ]; then echo "::error::Gave up after $ATTEMPT runs. Run again by hand if you want to keep going."; exit 1; fi
+          echo "Time limit reached after run $ATTEMPT. Starting run $next with the same inputs."
+          gh workflow run generate.yml --ref "$GITHUB_REF_NAME" \
+            -f script="$IN_SCRIPT" -f style="$IN_STYLE" -f media="$IN_MEDIA" -f seed="$IN_SEED" \
+            -f energy="$IN_ENERGY" -f voice="$IN_VOICE" -f audio="$IN_AUDIO" \
+            -f upload="$IN_UPLOAD" -f privacy="$IN_PRIVACY" \
+            -f auto_continue="$AUTO" -f attempt="$next"
 
       - name: Make the thumbnail
         continue-on-error: true
