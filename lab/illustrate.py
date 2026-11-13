@@ -271,6 +271,7 @@ def plan_picture(txt, seed, mem, topic="generic", face="neutral", qi=0, kind="me
     actors = []
 
     def char(r, x, act, scale, to=None, expr_=None, facing=1, fin=0.0):
+        scale = scale * 1.3                                    # people were small and lost in their picture: bigger, so faces and gestures can be read
         actors.append(dict(k="char", role=r, seed=seed0 + len(actors) * 7, x=x, scale=scale, action=act, to=to, expr=expr_ or expr, facing=facing, f_in=fin))
 
     if tpl == "walk":

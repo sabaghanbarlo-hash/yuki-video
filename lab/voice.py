@@ -381,6 +381,68 @@ def synth_gemini_only(text, args, ctx=None):
     return None if a is None else trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9))
 
 
+def synth_gemini_take(texts, args, ctxs=None):
+    """Gemini audio for several consecutive sentences spoken as one flowing take, or None (the pipeline decides what to do)."""
+    from . import gemini_tts as G
+    a = G.synth_take(texts, getattr(args, "voice", None), ctxs)
+    return None if a is None else trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9), keep=0.05)
+
+
+TAKE_SLOW = 1.5          # a whole take may run this much longer than natural speech (it contains the pauses between sentences) before it is recorded again
+
+
+def synth_voicestudio_take(texts, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive", k0=0):
+    """Voice Studio narration of SEVERAL consecutive sentences in ONE go.  The model hears the whole thought, so the intonation runs across the
+    commas and from sentence to sentence like a person talking (before, every phrase was recorded alone and glued together, which sounds like a robot
+    reading words).  Only real dead air is shortened; natural pauses stay.  Finished takes are cached on disk."""
+    from . import expressive as E
+    from collections import Counter
+    cache = Path(tmp) / "vs_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    ref0 = ref if ref and Path(ref).exists() else None
+    moods = [E.sentence_mood(t, emotion or "neutral") for t in texts]
+    top = [m for m, _ in Counter(moods).most_common() if m != "neutral"]
+    dom = top[0] if top else "neutral"
+    cfg = VP.mood_cfg(dom)
+    ref = VP.pick_ref(ref0, dom) if ref0 else None
+    rid = _file_md5(ref)[:10] if ref else "design"
+    spoken = []
+    for j, t in enumerate(texts):
+        pre, suf = E.vocal_tag(t, moods[j], k0 + j)
+        spoken.append(pre + t + suf)
+    text = " ".join(spoken)
+    sp = round(float(speed) * max(1.0, cfg["speed"]) * PACE, 3)
+    key = hashlib.md5(f"vf1|{rid}|{sp}|{steps}|{text}".encode()).hexdigest()[:16]
+    f = cache / f"{key}.wav"
+    if not f.exists():
+        import torch, torchaudio
+        m = _voicestudio(ref)
+        kw = dict(text=text, language="en", num_step=steps, speed=sp)
+        if ref:
+            kw["voice_clone_prompt"] = _VS["prompt"]
+        else:
+            kw["instruct"] = instruct
+        syl = sum(_syllables(t) for t in texts)
+        limit = max(1.0, syl * SYL_SEC * TAKE_SLOW)
+        best = None
+        for take in range(4):                                    # a take with dragged words is simply recorded again, like an actor would
+            torch.manual_seed(1000 * take + int(key[:6], 16) % 997)
+            wav = m.generate(**kw)[0].detach().cpu().reshape(1, -1)
+            raw = cache / f"{key}_raw.wav"
+            torchaudio.save(str(raw), wav, m.sampling_rate)
+            to_wav(raw, cache / f"{key}_take.wav")
+            raw.unlink(missing_ok=True)
+            cand = VP.polish(read_wav(cache / f"{key}_take.wav"), max_gap=0.42, min_gap=0.60)
+            if best is None or len(cand) < len(best):
+                best = cand
+            if len(cand) / SR <= limit:
+                best = cand
+                break
+        (cache / f"{key}_take.wav").unlink(missing_ok=True)
+        write_wav(f, best)
+    return VP.level(read_wav(f))
+
+
 def synth_gemini(text, args, tmp, emotion=None, ctx=None):
     from . import gemini_tts as G
     a = G.synth(text, getattr(args, "voice", None), ctx)

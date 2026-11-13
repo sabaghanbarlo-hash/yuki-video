@@ -158,10 +158,10 @@ def trim_edges(a, keep=0.14):
     return out
 
 
-def polish(a, max_gap=0.14):
+def polish(a, max_gap=0.14, min_gap=0.20):
     """Full clean-up of one synthesized sentence."""
     a = remove_breaths(a)
-    a = tighten(a, max_gap=max_gap)
+    a = tighten(a, max_gap=max_gap, min_gap=min_gap)
     a = trim_edges(a)
     return _fade(a.astype(np.float32))
 
@@ -184,3 +184,77 @@ def pick_ref(base_ref, mood):
         if c.exists():
             return str(c)
     return base_ref
+
+
+# ------------------------------------------------------------------ flowing narration: one take = a few sentences spoken together
+def level(a, target=0.085):
+    """Bring the speech of a take to a common loudness (active speech only), so neighbouring takes do not jump in volume."""
+    rms, _ = _frames(a)
+    act = rms[rms > 0.02 * (rms.max() if len(rms) else 1)]
+    if len(act) == 0:
+        return a
+    cur = float(np.sqrt(np.mean(act ** 2)))
+    g = float(np.clip(target / max(cur, 1e-4), 0.35, 3.0))
+    y = a * g
+    pk = float(np.abs(y).max())
+    if pk > 0.95:
+        y = np.tanh(y / pk * 1.1) / np.tanh(1.1) * 0.95
+    return y.astype(np.float32)
+
+
+def _units(text):
+    """Rough 'time cost' of a sentence: syllables plus an allowance for the punctuation pauses."""
+    t = re.sub(r"\[[^\]]*\]", "", text)
+    syl = 0
+    for w in re.findall(r"[A-Za-z']+", t):
+        g = len(re.findall(r"[aeiouy]+", w.lower()))
+        if w.lower().endswith("e") and g > 1 and not w.lower().endswith(("le", "ee")):
+            g -= 1
+        syl += max(1, g)
+    syl += 0.7 * len(re.findall(r"[,;:]", t))
+    syl += 1.4 if t.rstrip().endswith(("?", "!")) else 1.0 if t.rstrip().endswith(".") else 0.4
+    return max(1.0, syl)
+
+
+def cut_take(x, sentences):
+    """Cut ONE recording of several sentences back into one array per sentence.
+    Each cut is made at the quietest moment near where the sentence should end (by its length), so a natural pause or breath
+    is where the cut falls and no word is ever split.  Returns len(sentences) float32 arrays (edges trimmed, short fade)."""
+    n = len(sentences)
+    if n <= 1:
+        return [trim_edges(x, keep=0.05)] if n == 1 else []
+    rms, _ = _frames(x)
+    if len(rms) < 10:
+        return [x] * n
+    sm = np.convolve(rms, np.ones(3) / 3, mode="same")
+    lv = _level(rms)
+    voiced = np.where(sm > 0.05 * lv)[0]
+    if len(voiced) == 0:
+        return [x] * n
+    v0, v1 = int(voiced[0]), int(voiced[-1]) + 1
+    w = np.array([_units(t) for t in sentences], float)
+    cum = np.cumsum(w) / w.sum()
+    bounds, last = [], v0
+    for k in range(n - 1):
+        target = v0 + cum[k] * (v1 - v0)
+        span = (v1 - v0) * (w[k] + w[k + 1]) / w.sum()
+        half = int(max(45, 0.30 * span))                           # search +-30% of the two neighbouring sentences (at least 0.45 s)
+        lo, hi = int(max(last + 30, target - half)), int(min(v1 - 30, target + half))
+        if hi <= lo:
+            b = int(target)
+        else:
+            seg = sm[lo:hi]
+            dist = np.abs(np.arange(lo, hi) - target) / half
+            score = seg / (lv + 1e-9) + 0.12 * dist                # quiet first, nearer the expected place second
+            b = lo + int(np.argmin(score))
+            # a pause is a run of quiet frames: cut in the middle of it
+            q = np.where(sm[max(lo, b - 40):min(hi, b + 40)] < sm[b] * 1.35 + 0.01 * lv)[0]
+            if len(q):
+                b = max(lo, b - 40) + int((q[0] + q[-1]) // 2)
+        bounds.append(b); last = b
+    edges = [0] + bounds + [len(rms)]
+    out = []
+    for i in range(n):
+        seg = x[edges[i] * HOP: edges[i + 1] * HOP]
+        out.append(trim_edges(seg, keep=0.05) if len(seg) > HOP * 4 else seg)
+    return out

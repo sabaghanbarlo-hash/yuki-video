@@ -24,6 +24,9 @@ INK = (38, 34, 56)
 HIP, SHO, NECK = -100.0, -172.0, -196.0            # design-space y (feet at 0, up is negative)
 L_ARM1, L_ARM2, L_LEG1, L_LEG2 = 44.0, 42.0, 40.0, 40.0
 DESIGN = 0.96                                       # scale 1.0 ~ 260 px
+HIPW = 13.0          # the two legs hang from hips this far apart (before: both from x=0, so the legs overlapped into ONE leg)
+SHW = 30.0           # shoulders sit at the edge of the torso (before: hidden behind the body)
+CHIBI = 1.22         # heads are bigger, like Yuki's, so the scene people and the narrator look like one cast
 
 
 def _d(a):
@@ -69,7 +72,7 @@ def _walk(t, amp, bend, freq, arm_amp, elbow, lean, bob):
 
 def pose(action, t, role="citizen"):
     """-> dict(arms=[(upper, bend) near, far], legs=[(upper, bend) near, far], lean, rot, lift, sx, sy, shake, tilt, look=(x,y), ground, extra)"""
-    P = dict(arms=[(5, 8), (5, 8)], legs=[(2, 3), (-2, 3)], lean=0.0, rot=0.0, lift=0.0, sx=1.0, sy=1.0, shake=0.0, tilt=0.0, look=(0, 0), ground=True, extra=None, expr=None)
+    P = dict(arms=[(7, 8), (-9, 8)], legs=[(5, 3), (-5, 3)], lean=0.0, rot=0.0, lift=0.0, sx=1.0, sy=1.0, shake=0.0, tilt=0.0, look=(0, 0), ground=True, extra=None, expr=None)
     if action == "walk":
         P.update(_walk(t, 28, 38, 1.1, 30, 16, 3, 3))
     elif action == "run":
@@ -79,10 +82,10 @@ def pose(action, t, role="citizen"):
         P.update(_walk(t, 18, 30, 0.8, 0, 0, 24, 1)); P["arms"] = [(88, 3), (84, 4)]
     elif action == "talk":
         a = math.sin(math.tau * 0.9 * t); b = math.sin(math.tau * 1.4 * t + 1.0); c = math.sin(math.tau * 0.6 * t + 2.0)
-        P["arms"] = [(30 + 16 * a, 62 + 22 * b), (10 + 10 * max(0, c), 20 + 40 * max(0, c))]
+        P["arms"] = [(30 + 16 * a, 62 + 22 * b), (-8 + 22 * max(0, c), 16 + 40 * max(0, c))]
         P["tilt"] = 3 * a; P["lift"] = 1.5 * abs(b)
     elif action == "point":
-        P["arms"] = [(84 + 2 * math.sin(t * 3), 3), (4, 10)]; P["lean"] = 3; P["look"] = (1, 0)
+        P["arms"] = [(84 + 2 * math.sin(t * 3), 3), (-10, 10)]; P["lean"] = 3; P["look"] = (1, 0)
     elif action == "jump":
         T = 1.15; u = (t % T) / T
         if u < 0.16:
@@ -112,19 +115,19 @@ def pose(action, t, role="citizen"):
         P.update(arms=[(48 + 14 * math.sin(t * 1.1), 24), (58 - 14 * math.sin(t * 1.1 + 1), 22)], legs=[(-26 + 8 * math.sin(t * 0.9), 16), (-14 + 8 * math.sin(t * 0.9 + 2), 22)],
                  rot=24 * math.sin(t * 0.55) + 8, lift=38 + 8 * math.sin(t * 1.3), ground=False, tilt=3 * math.sin(t))
     elif action == "wave":
-        P.update(arms=[(138, 26 + 24 * math.sin(math.tau * 2.2 * t)), (4, 8)], tilt=-3)
+        P.update(arms=[(138, 26 + 24 * math.sin(math.tau * 2.2 * t)), (-10, 8)], tilt=-3)
         P["expr"] = "happy"
     elif action == "cheer":
         k = abs(math.sin(math.tau * 1.4 * t))
         P.update(arms=[(136 - 8 * k, 34), (136 - 8 * (1 - k), 34)], legs=[(8, 8), (-8, 8)], lift=12 * k, sy=1 + 0.03 * k)
         P["expr"] = "happy"
     elif action == "look_up":
-        P.update(tilt=-9, look=(0.2, -1), arms=[(10, 14), (8, 10)], lean=-4)
+        P.update(tilt=-9, look=(0.2, -1), arms=[(10, 14), (-9, 10)], lean=-4)
     elif action == "sit":
         P.update(legs=[(86, 86), (80, 82)], arms=[(24, 56), (20, 50)], lean=-3, tilt=2 * math.sin(t * 1.2))
     else:                                                  # idle
         br = math.sin(math.tau * t / 3.2)
-        P.update(sy=1 + 0.012 * br, arms=[(5 + 2 * br, 8), (5 - 2 * br, 8)], tilt=1.5 * math.sin(t * 0.8))
+        P.update(sy=1 + 0.012 * br, arms=[(8 + 2 * br, 9), (-10 - 2 * br, 9)], tilt=1.5 * math.sin(t * 0.8))
     return P
 
 
@@ -146,11 +149,13 @@ def _look(role, seed):
     elif role == "engineer":
         L.update(shirt=(80, 98, 138), pants=(60, 66, 84), shoe=(70, 60, 56), glove=(230, 190, 60))
     elif role == "kid":
-        L.update(head=1.12, body=0.74, hairstyle=r.choice(["short", "bun", "spiky", "bob"]))
+        L.update(head=1.0, body=0.74, hairstyle=r.choice(["short", "bun", "spiky", "bob"]))
     elif role == "teacher":
         L.update(shirt=(124, 66, 80), pants=(60, 56, 76))
     elif role == "robot":
         L.update(skin=(176, 190, 208), shirt=(150, 164, 186), pants=(120, 134, 158), shoe=(90, 100, 124), glove=(210, 220, 232), hairstyle="bald")
+    if role != "robot":
+        L["head"] *= CHIBI
     return L
 
 
@@ -166,8 +171,8 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
     fc = 1 if facing >= 0 else -1
     # ---- limb solving (design space)
     legs = []
-    for a, b in P["legs"]:
-        hip = (0.0, HIP)
+    for li, (a, b) in enumerate(P["legs"]):
+        hip = ((HIPW if li == 0 else -HIPW) * 0.8, HIP)
         kx, ky = _d(a); knee = (hip[0] + kx * L_LEG1, hip[1] + ky * L_LEG1)
         ax, ay = _d(a - b); ank = (knee[0] + ax * L_LEG2, knee[1] + ay * L_LEG2)
         legs.append((hip, knee, ank))
@@ -209,7 +214,7 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
 
     # ---- arms (solved in design space, rotated with torso)
     def arm_pts(a, b, side):
-        shp = (17.0 * side, SHO)
+        shp = (SHW * side, SHO + 4)
         ex, ey = _d(a); el = (shp[0] + ex * L_ARM1, shp[1] + ey * L_ARM1)
         hx, hy = _d(a + b); hd = (el[0] + hx * L_ARM2, el[1] + hy * L_ARM2)
         return shp, el, hd
@@ -222,7 +227,7 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
 
     def draw_arm(idx, dark):
         shp, el, hd = arms[idx]
-        c1 = shade(sleeve, -0.16) if dark else sleeve
+        c1 = shade(sleeve, -0.30) if dark else shade(sleeve, -0.10)
         c2 = (shade(hand_col, -0.14) if dark else hand_col)
         if role in ("explorer", "citizen", "engineer", "kid", "geologist", "teacher", "diver", "astronaut", "scientist") and not robot:
             pass
@@ -252,7 +257,7 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
         if robot:
             lc = shade((120, 134, 158), -0.14 if dark else 0)
         a0, a1, a2 = Tl(*hip), Tl(*knee), Tl(*ank)
-        w = wlim * (0.78 if robot else 1.0)
+        w = wlim * (0.78 if robot else 0.86)
         cv.line(a0, a1, w, lc); cv.line(a1, a2, w * 0.92, lc)
         if role == "diver":
             cv.line(a1, a2, w * 0.92, (34, 74, 150))
@@ -275,15 +280,17 @@ def draw_character(cv, x, floor_y, scale, role, seed, action, t, facing=1, mouth
     cv.poly([T(px, py) for px, py in [(20, -190), (38, -160), (38, -128), (24, -108), (14, -108), (22, -150)]], shade(shirt, -0.14))   # shaded side
     _torso_detail(cv, role, T, S, L, P)
     # ---- head
-    hc_local = (0.0, -226.0)
+    hc_y = -226.0 - 34.0 * (L["head"] - 1.0)
     tilt = P["tilt"] * (1 if True else 0)
 
-    def Hh(u, v):
-        ox, oy = _rot(u, v, tilt)
-        return T(0 + ox, -226 + oy)
+    hs = L["head"]
+
+    def Hh(u, v):                                      # head-local point (design units at head size 1), scaled with the head
+        ox, oy = _rot(u * hs, v * hs, tilt)
+        return T(0 + ox, hc_y + oy)
 
     hr = 46.0 * L["head"]
-    c = T(0, -226)
+    c = T(0, hc_y)
     hrad = hr * S * bs ** 0.4 * (sx_ + sy_) / 2
     _hair_back(cv, L, Hh, hrad, hr, S, role, tilt)
     if robot:
@@ -312,17 +319,19 @@ def _face(cv, Hh, S, L, expr, mouth, t, seed, P):
     blink = ((t + (seed % 7) * 0.37) % 3.7) < 0.13 and expr != "shocked"
     lx, ly = P["look"]
     pr = (6.2 if expr != "shocked" else 4.4) * S
-    for k, du in enumerate((-15, 16)):
-        cx_, cy_ = Hh(u0 + du, -4)
+    for k, du in enumerate((-19, 20)):
+        cx_, cy_ = Hh(u0 + du, -2)
         if blink or expr == "happy" and False:
             cv.line((cx_ - rx * 0.8, cy_), (cx_ + rx * 0.8, cy_), 3.2 * S, INK)
             continue
-        cv.ellipse(cx_, cy_, rx, ry, (255, 255, 255))
-        cv.ellipse(cx_, cy_, rx, ry, (0, 0, 0), alpha=0)
-        px_ = cx_ + (3.2 + lx * 5) * S * (1 if True else 0)
-        py_ = cy_ + ly * 5.5 * S + (1.5 * S if expr in ("worried",) else 0)
-        cv.circle(px_, py_, pr, INK)
-        cv.circle(px_ + pr * 0.32, py_ - pr * 0.34, pr * 0.3, (255, 255, 255))
+        big = expr in ("shocked",)
+        erx, ery = rx * (0.70 if not big else 0.62), ry * (0.82 if not big else 0.74)
+        cv.ellipse(cx_, cy_, erx, ery, INK)                                      # big dark glossy eye, like Yuki's
+        px_ = cx_ + (1.6 + lx * 3.5) * S
+        py_ = cy_ + ly * 3.5 * S + (1.5 * S if expr in ("worried",) else 0)
+        cv.ellipse(px_ + erx * 0.28, py_ - ery * 0.34, erx * 0.34, erx * 0.34, (255, 255, 255))     # main highlight
+        cv.circle(px_ - erx * 0.30, py_ + ery * 0.38, erx * 0.14, (255, 255, 255))                 # small highlight
+        cv.ellipse(cx_, cy_ + ery * 0.55, erx * 0.8, ery * 0.34, (120, 86, 150), alpha=70)          # soft colour in the lower eye
         if expr == "happy":                                               # eyes squeezed by cheeks
             cv.ellipse(cx_, cy_ + ry * 0.95, rx * 1.15, ry * 0.42, L["skin"])
         # brows
@@ -340,10 +349,9 @@ def _face(cv, Hh, S, L, expr, mouth, t, seed, P):
             _brow(cv, cx_, by - 6 * S, rx, 0, S)
         elif expr == "happy":
             _brow(cv, cx_, by - 2 * S, rx * 0.9, -4 if k == 0 else 4, S)
-    # cheeks
-    if expr == "happy":
-        for du in (-24, 30):
-            c_ = Hh(u0 + du, 14); cv.ellipse(c_[0], c_[1], 7 * S, 4.5 * S, (255, 140, 140), alpha=120)
+    # cheeks: a soft blush on every face (Yuki has it too), stronger when happy
+    for du in (-26, 32):
+        c_ = Hh(u0 + du, 14); cv.ellipse(c_[0], c_[1], 8 * S, 5 * S, (255, 130, 140), alpha=150 if expr == "happy" else 95)
     # mouth
     mx, my = Hh(u0 + 2, 23)
     m = max(0.0, min(1.0, mouth))
@@ -391,7 +399,7 @@ def _hair_back(cv, L, Hh, hrad, hr, S, role, tilt):
     elif st == "long":
         cv.poly([Hh(-36, -20), Hh(-50, 10), Hh(-52, 52), Hh(-40, 80), Hh(-16, 86), Hh(4, 72), Hh(10, 30), Hh(0, -6)], shade(col, -0.1))
     elif st == "bob":
-        cv.circle(c[0] - 3 * Sh, c[1] + 3 * Sh, hrad * 1.05, shade(col, -0.1))
+        cv.poly([Hh(-50, -24), Hh(-56, 8), Hh(-52, 40), Hh(-40, 50), Hh(-12, 52), Hh(-6, 30), Hh(-4, -20)], shade(col, -0.1))      # back of the hair, ending at the jaw (the face stays free)
     elif st == "bun":
         b = Hh(-14, -58); cv.circle(b[0], b[1], 17 * Sh, col)
 
@@ -400,7 +408,7 @@ def _hair_front(cv, L, Hh, Sh, role, tilt):
     if role in ("astronaut", "robot") or L["hairstyle"] == "bald":
         return
     st, col = L["hairstyle"], L["hair"]
-    r = 49.0 * (L["head"])                      # a hair's breadth bigger than the head: the cap hugs it with no skin gap
+    r = 49.0                                    # a hair's breadth bigger than the head (Hh scales it with the head): the cap hugs it with no skin gap
     arc = [Hh(r * math.cos(math.radians(a)), r * math.sin(math.radians(a))) for a in range(165, 376, 14)]
     if st == "afro":
         fr = [Hh(44, -2), Hh(30, -24), Hh(10, -30), Hh(-10, -22), Hh(-32, -8), Hh(-46, 8)]

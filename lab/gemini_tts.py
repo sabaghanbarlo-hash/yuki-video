@@ -157,15 +157,38 @@ def _pcm(resp):
     return None
 
 
-def synth(text, voice=None, ctx=None, max_wait=75):
+FLOW = ("Perform the whole TRANSCRIPT below out loud as ONE continuous piece of speech, the way a real person tells something to a friend: "
+        "the sentences lead into each other and each one picks up the energy and the thought of the one before, the pitch rises and falls with the meaning, "
+        "the voice lands on the important words and goes lighter on the rest, and between sentences there is only a natural breath, never an announcer's stop. "
+        "The notes are only for how to perform it: never read them aloud.")
+
+
+def take_prompt(texts, ctxs):
+    """Director's notes for SEVERAL sentences spoken in one go (a flowing take)."""
+    lines = []
+    for i, (t, c) in enumerate(zip(texts, ctxs), 1):
+        c = c or {}
+        lines.append(f"{i}. {direction(t, c.get('role', 'statement'), c.get('emotion'), c.get('strength', 0.0))}")
+    return (f"{FLOW}\n\n### DIRECTOR'S NOTES\nOverall: {BASE}.\nHow each sentence feels, in order (blend them smoothly, do not switch abruptly):\n"
+            + "\n".join(lines) + "\n\n### TRANSCRIPT\n" + " ".join(texts))
+
+
+def synth_take(texts, voice=None, ctxs=None, max_wait=75):
+    """One recording of several consecutive sentences, so the voice carries the thought across them. -> float32 array or None."""
+    ctxs = ctxs or [None] * len(texts)
+    return synth(" ".join(texts), voice, None, max_wait, prompt=take_prompt(texts, ctxs))
+
+
+def synth(text, voice=None, ctx=None, max_wait=75, prompt=None):
     """-> float32 array at 24 kHz, or None (caller uses the fallback voice)."""
     if STATE["dead"] or not _key():
         return None
     ctx = ctx or {}
     voice = voice or os.environ.get("YUKI_GEMINI_VOICE") or DEFAULT_VOICE
-    d = direction(text, ctx.get("role", "statement"), ctx.get("emotion"), ctx.get("strength", 0.0))
-    prompt = ("Perform the TRANSCRIPT below out loud. The notes are only for how to perform it: never read them aloud.\n\n"
-              f"### DIRECTOR'S NOTES\nStyle: {d}.\nDelivery: {BASE}.\n\n### TRANSCRIPT\n{text}")
+    if prompt is None:
+        d = direction(text, ctx.get("role", "statement"), ctx.get("emotion"), ctx.get("strength", 0.0))
+        prompt = ("Perform the TRANSCRIPT below out loud. The notes are only for how to perform it: never read them aloud.\n\n"
+                  f"### DIRECTOR'S NOTES\nStyle: {d}.\nDelivery: {BASE}.\n\n### TRANSCRIPT\n{text}")
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}}}
     STATE["calls"] += 1

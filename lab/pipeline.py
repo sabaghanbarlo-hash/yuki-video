@@ -12,6 +12,7 @@ import numpy as np
 
 from . import knowledge as K
 from . import voice as A
+from . import voice_polish as VP
 from . import sfx as S
 from .script import parse, WPS
 from .director import direct, entities_in, make_cam_2d, summary
@@ -74,6 +75,9 @@ def voice(plan, args, tmp):
         return align_upload(args.audio, [s["spoken"] for _, _, s in sents], tmp)
     if args.tts == "gemini":
         return voice_gemini(sents, args, tmp)
+    if args.tts == "voicestudio" and getattr(args, "flow", True):
+        out, _missing = voice_flow(sents, args, tmp, _fetch_voicestudio, "vs")
+        return out
     out = []
     for n, (sc, i, s) in enumerate(sents):
         key = hashlib.md5(f"v3|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
@@ -88,6 +92,70 @@ def voice(plan, args, tmp):
     return out
 
 
+FLOW_WORDS, FLOW_SENTS = 38, 3
+
+
+def make_takes(sents, max_words=FLOW_WORDS, max_sents=FLOW_SENTS):
+    """Group consecutive sentences into 'takes' that are recorded in one go (a few sentences of the same paragraph and scene).
+    A take ends at the end of a paragraph, at a scene change, at an explicit [pause], or when it gets long."""
+    takes, cur, words = [], [], 0
+    for n, (sc, i, s) in enumerate(sents):
+        w = len(s["spoken"].split())
+        if cur:
+            psc, _pi, ps = cur[-1][1], cur[-1][2], cur[-1][3]
+            if psc is not sc or ps.get("para_end") or ps.get("pause") is not None or len(cur) >= max_sents or words + w > max_words:
+                takes.append(cur); cur, words = [], 0
+        cur.append((n, sc, i, s)); words += w
+    if cur:
+        takes.append(cur)
+    return takes
+
+
+def voice_flow(sents, args, tmp, fetch, tag):
+    """Narration recorded in flowing takes.  fetch(texts, ctxs, n0, args, tmp) -> float32 audio of the whole take, or None (engine unavailable).
+    Returns (list of per-sentence arrays or None where a take could not be recorded, number of missing sentences)."""
+    tmp = Path(tmp)
+    out = [None] * len(sents)
+    missing = 0
+    takes = make_takes([(sc, i, s) for sc, i, s in sents])
+    # the make_takes tuples are (n, sc, i, s)
+    for ti, take in enumerate(takes):
+        texts = [s["spoken"] for _, _, _, s in take]
+        for j, (_n, _sc, _i, s) in enumerate(take):               # natural gaps inside a take; paragraph ends keep the longer pause
+            if not s.get("para_end"):
+                s["flow_pause"] = 0.22
+        key = hashlib.md5(f"fl1|{tag}|{getattr(args, 'voice', '')}|{getattr(args, 'speed', 1)}|{getattr(args, 'steps', 16)}|{' '.join(texts)}".encode()).hexdigest()[:16]
+        f = tmp / "voice" / f"{key}.npy"
+        if f.exists():
+            x = np.load(f)
+        else:
+            n0 = take[0][0]
+            print(f"  voicing take {ti + 1}/{len(takes)} ({len(texts)} sentence{'s' if len(texts) > 1 else ''}, {sum(len(t.split()) for t in texts)} words)", flush=True)
+            ctxs = []
+            if tag == "g":
+                from . import gemini_tts as G
+                for _n, _sc, _i, s in take:
+                    role, emo, strength = G.feeling(s["spoken"], first=(_n == 0), last=(_n == len(sents) - 1))
+                    ctxs.append(dict(role=role, emotion=emo, strength=strength))
+            x = fetch(texts, ctxs, n0, args, tmp, [s["mood"] for _, _, _, s in take])
+            if x is None:
+                missing += len(texts)
+                continue
+            x = np.asarray(x, np.float32)
+            np.save(f, x)
+        for (n, _sc, _i, s), part in zip(take, VP.cut_take(x, texts)):
+            out[n] = np.asarray(part, np.float32)
+    return out, missing
+
+
+def _fetch_voicestudio(texts, ctxs, n0, args, tmp, moods):
+    return A.synth_voicestudio_take(texts, getattr(args, "ref", None), tmp, getattr(args, "speed", 1.0), getattr(args, "steps", 16), emotion=moods[0], k0=n0)
+
+
+def _fetch_gemini(texts, ctxs, n0, args, tmp, moods):
+    return A.synth_gemini_take(texts, args, ctxs)
+
+
 def voice_gemini(sents, args, tmp):
     """Natural, acted narration from Gemini, one voice for the whole video.
     Every sentence is directed from the story role + feeling (lab/gemini_tts.py) and cached.  The free tier has a small daily quota: if it cannot
@@ -95,7 +163,12 @@ def voice_gemini(sents, args, tmp):
     did stay cached, so running the same script again after the quota resets only has to fetch the missing ones."""
     from . import gemini_tts as G
     out, missing = [], 0
-    for n, (sc, i, s) in enumerate(sents):
+    if getattr(args, "flow", True):                              # flowing takes: a few sentences per recording, fewer requests and a voice that connects them
+        out, missing = voice_flow(sents, args, tmp, _fetch_gemini, "g")
+        sents_iter = []
+    else:
+        sents_iter = list(enumerate(sents))
+    for n, (sc, i, s) in sents_iter:
         key = hashlib.md5(f"g1|{getattr(args, 'voice', '')}|{s['spoken']}".encode()).hexdigest()[:16]
         f = tmp / "voice" / f"{key}.npy"
         if f.exists():
@@ -174,9 +247,10 @@ def align_upload(path, spoken, tmp):
 
 # ------------------------------------------------------------------ timeline
 def gap_after(s):
-    g = s["pause"] if s.get("pause") is not None else (0.55 if s.get("para_end") else 0.3)
+    fp = s.get("flow_pause")                                   # sentences recorded inside one flowing take keep their own natural pause: only a small extra gap
+    g = s["pause"] if s.get("pause") is not None else (fp if fp is not None else (0.55 if s.get("para_end") else 0.3))
     if s["text"].rstrip().endswith("?"):
-        g += 0.25
+        g += 0.08 if (fp is not None and s.get("pause") is None) else 0.25
     return g
 
 

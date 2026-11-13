@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--rate", default=None)
     ap.add_argument("--energy", type=float, default=1.2, help="delivery strength: 0.7 calm, 1.2 lively (default), 1.6 over the top")
     ap.add_argument("--flat-voice", action="store_true")
+    ap.add_argument("--no-flow", dest="flow", action="store_false", help="record every sentence separately (old behaviour). Default: sentences of a paragraph are recorded together in flowing takes, which sounds like a person telling a story")
     ap.add_argument("--ref", default=None, help="voice sample for --tts clone (default: voice/ref.*)")
     ap.add_argument("--exaggeration", type=float, default=0.5)
     ap.add_argument("--steps", type=int, default=16, help="Voice Studio quality steps (more = better, slower)")
@@ -65,6 +66,9 @@ def main():
     args.pitch = args.pitch or match.get("pitch") or "+0Hz"
     args.rate = args.rate or match.get("rate") or "-4%"
     args.expressive = not args.flat_voice
+    import os as _os
+    if _os.environ.get("YUKI_FLOW", "1").strip().lower() in ("0", "false", "off", "no"):
+        args.flow = False
     if args.tts in ("clone", "voicestudio") and not args.ref:
         for ext in ("wav", "mp3", "m4a", "ogg", "flac"):
             if (HERE / "voice" / f"ref.{ext}").exists():
