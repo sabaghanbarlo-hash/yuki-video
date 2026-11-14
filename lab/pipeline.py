@@ -111,6 +111,33 @@ def make_takes(sents, max_words=FLOW_WORDS, max_sents=FLOW_SENTS):
     return takes
 
 
+def mem_guard(where=""):
+    """The free GitHub runner has ~16 GB.  Voice generation slowly grows in memory; when it gets near the limit the runner is killed without a trace
+    ("lost communication with the server") and nothing is saved.  Instead: free what can be freed and, if memory is still high, stop cleanly with exit
+    code 124 (what the workflow treats as 'time limit reached'): finished takes are saved and the next run continues where this one stopped."""
+    import gc, ctypes
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+    try:
+        rss = avail = None
+        for ln in open("/proc/self/status"):
+            if ln.startswith("VmRSS:"):
+                rss = int(ln.split()[1]) / 1048576
+        for ln in open("/proc/meminfo"):
+            if ln.startswith("MemAvailable:"):
+                avail = int(ln.split()[1]) / 1048576
+        limit = float(os.environ.get("YUKI_MEM_LIMIT_GB", "9"))
+        if (rss and rss > limit) or (avail is not None and avail < 1.5):
+            print(f"  [memory] {rss:.1f} GB used, {avail:.1f} GB free{where}: stopping cleanly so the finished takes are saved and the next run continues", flush=True)
+            sys.stdout.flush()
+            os._exit(124)
+    except Exception:
+        pass
+
+
 def voice_flow(sents, args, tmp, fetch, tag):
     """Narration recorded in flowing takes.  fetch(texts, ctxs, n0, args, tmp) -> float32 audio of the whole take, or None (engine unavailable).
     Returns (list of per-sentence arrays or None where a take could not be recorded, number of missing sentences)."""
@@ -143,6 +170,7 @@ def voice_flow(sents, args, tmp, fetch, tag):
                 continue
             x = np.asarray(x, np.float32)
             np.save(f, x)
+            mem_guard(f" after take {ti + 1}/{len(takes)}")
         for (n, _sc, _i, s), part in zip(take, VP.cut_take(x, texts)):
             out[n] = np.asarray(part, np.float32)
     return out, missing
