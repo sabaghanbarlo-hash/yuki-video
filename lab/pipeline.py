@@ -92,7 +92,7 @@ def voice(plan, args, tmp):
     return out
 
 
-FLOW_WORDS, FLOW_SENTS = 38, 3
+FLOW_WORDS, FLOW_SENTS = 32, 3
 
 
 def make_takes(sents, max_words=FLOW_WORDS, max_sents=FLOW_SENTS):

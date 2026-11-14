@@ -388,7 +388,7 @@ def synth_gemini_take(texts, args, ctxs=None):
     return None if a is None else trim(np.asarray(a, np.float32) / max(1.0, float(np.abs(a).max()) / 0.9), keep=0.05)
 
 
-TAKE_SLOW = 1.5          # a whole take may run this much longer than natural speech (it contains the pauses between sentences) before it is recorded again
+TAKE_SLOW = 2.1          # a whole take may run this much longer than natural speech (it contains the pauses between sentences) before it is recorded again
 
 
 def synth_voicestudio_take(texts, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive", k0=0):
@@ -425,7 +425,7 @@ def synth_voicestudio_take(texts, ref, tmp, speed=1.0, steps=16, emotion=None, i
         syl = sum(_syllables(t) for t in texts)
         limit = max(1.0, syl * SYL_SEC * TAKE_SLOW)
         best = None
-        for take in range(4):                                    # a take with dragged words is simply recorded again, like an actor would
+        for take in range(2):                                    # a take with dragged words is simply recorded again, like an actor would
             torch.manual_seed(1000 * take + int(key[:6], 16) % 997)
             wav = m.generate(**kw)[0].detach().cpu().reshape(1, -1)
             raw = cache / f"{key}_raw.wav"
