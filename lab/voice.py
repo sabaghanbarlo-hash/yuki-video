@@ -180,7 +180,7 @@ def _voicestudio(ref):
     return _VS["m"]
 
 
-PACE = 0.98              # barely above the model's own pace: no 'sped up' sound
+PACE = 1.0               # the model's own natural pace: not slowed down, not sped up
 SYL_SEC = 0.160          # natural, lively speech: about 6.5 syllables a second
 MAX_SLOW = 1.30          # a take that runs more than 30% longer than natural speech is re-recorded
 
@@ -225,7 +225,7 @@ def _gentle(a, text, tmp):
     dur = len(a) / SR
     if dur <= want or dur < 0.6:
         return a
-    rate = min(1.10, dur / want)
+    rate = min(1.05, dur / want)
     src, dst = Path(tmp) / "pace_in.wav", Path(tmp) / "pace_out.wav"
     write_wav(src, a)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-filter:a", f"atempo={rate:.4f}", "-ar", str(SR), "-ac", "1", str(dst)], check=True)

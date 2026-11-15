@@ -277,9 +277,9 @@ def align_upload(path, spoken, tmp):
 # ------------------------------------------------------------------ timeline
 def gap_after(s):
     fp = s.get("flow_pause")                                   # sentences recorded inside one flowing take keep their own natural pause: only a small extra gap
-    g = s["pause"] if s.get("pause") is not None else (fp if fp is not None else (0.55 if s.get("para_end") else 0.3))
+    g = s["pause"] if s.get("pause") is not None else (fp if fp is not None else (0.5 if s.get("para_end") else 0.22))
     if s["text"].rstrip().endswith("?"):
-        g += 0.08 if (fp is not None and s.get("pause") is None) else 0.25
+        g += 0.08 if (fp is not None and s.get("pause") is None) else 0.15
     return g
 
 
