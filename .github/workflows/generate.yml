@@ -20,7 +20,7 @@ on:
         default: "1.2"
       voice:
         description: "voicestudio (Voice Studio, speaks in YOUR voice sample, slow), gemini (natural, emotional Gemini voice, not your voice; falls back to kokoro), kokoro (free voice matched to yours), clone (your own voice, slow), edge (Microsoft voices, often blocked)"
-        default: "gemini"
+        default: "voicestudio"
       audio:
         description: "Optional: your own narration recording in the repo, e.g. audio/my-video.mp3 (replaces the voice above)"
         default: ""
@@ -83,29 +83,6 @@ jobs:
             test -f "$AUDIO" || { echo "::error::$AUDIO not found"; exit 1; }
           fi
           if [ "$VOICE" = "clone" ] && [ -z "$AUDIO" ]; then ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice, or pick another voice."; exit 1; }; fi
-
-      - name: Use Gemini instead of the cloned voice
-        if: ${{ (github.event.inputs.voice == 'voicestudio' || github.event.inputs.voice == 'clone') && github.event.inputs.audio == '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IN_SCRIPT: ${{ github.event.inputs.script }}
-          IN_STYLE: ${{ github.event.inputs.style }}
-          IN_MEDIA: ${{ github.event.inputs.media }}
-          IN_SEED: ${{ github.event.inputs.seed }}
-          IN_ENERGY: ${{ github.event.inputs.energy }}
-          IN_UPLOAD: ${{ github.event.inputs.upload }}
-          IN_PRIVACY: ${{ github.event.inputs.privacy }}
-          IN_AUTO: ${{ github.event.inputs.auto_continue }}
-          IN_ATTEMPT: ${{ github.event.inputs.attempt }}
-        run: |
-          echo "The cloned voice is switched off (Gemini is the default voice). Starting the same video again with Gemini."
-          gh workflow run generate.yml --ref "$GITHUB_REF_NAME" \
-            -f script="$IN_SCRIPT" -f style="$IN_STYLE" -f media="$IN_MEDIA" -f seed="$IN_SEED" \
-            -f energy="$IN_ENERGY" -f voice="gemini" -f audio="" \
-            -f upload="$IN_UPLOAD" -f privacy="$IN_PRIVACY" \
-            -f auto_continue="${IN_AUTO:-true}" -f attempt="${IN_ATTEMPT:-1}"
-          gh run cancel "$GITHUB_RUN_ID" || true
-          sleep 60
 
       - name: System dependencies
         run: |

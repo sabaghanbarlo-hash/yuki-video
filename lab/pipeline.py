@@ -88,6 +88,7 @@ def voice(plan, args, tmp):
         a = A.synth(s["spoken"], args, n, tmp, emotion=s["mood"])
         a = np.asarray(a, np.float32)
         np.save(f, a)
+        mem_guard(f" after sentence {n + 1}/{len(sents)}")
         out.append(a)
     return out
 
