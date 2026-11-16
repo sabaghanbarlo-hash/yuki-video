@@ -16,12 +16,22 @@ if need:
 
 
 def post_form(url, data):
-    r = urllib.request.Request(url, data=urllib.parse.urlencode(data).encode(), method="POST")
-    try:
-        return json.load(urllib.request.urlopen(r, timeout=60))
-    except urllib.error.HTTPError as e:
-        sys.exit(f"Google refused the login ({e.code}): {e.read().decode(errors='replace')[:300]}\n"
-                 "If it says invalid_grant, the refresh token expired or was revoked: make a new one (see README).")
+    for attempt in range(7):                                   # Google sometimes answers 5xx for a moment: wait and ask again
+        r = urllib.request.Request(url, data=urllib.parse.urlencode(data).encode(), method="POST")
+        try:
+            return json.load(urllib.request.urlopen(r, timeout=60))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors='replace')[:300]
+            if e.code >= 500 or e.code == 429:
+                print(f"Google answered {e.code} ({body.strip()[:80]}), trying again in {15 * (attempt + 1)} s ...", flush=True)
+                time.sleep(15 * (attempt + 1))
+                continue
+            sys.exit(f"Google refused the login ({e.code}): {body}\n"
+                     "If it says invalid_grant, the refresh token expired or was revoked: make a new one (see README).")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            print(f"Network problem ({e}), trying again ...", flush=True)
+            time.sleep(15 * (attempt + 1))
+    sys.exit("Google did not answer after several tries (their side). Run the upload again in a few minutes.")
 
 
 tok = post_form("https://oauth2.googleapis.com/token",
