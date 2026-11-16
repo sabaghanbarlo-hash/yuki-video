@@ -258,3 +258,46 @@ def cut_take(x, sentences):
         seg = x[edges[i] * HOP: edges[i + 1] * HOP]
         out.append(trim_edges(seg, keep=0.05) if len(seg) > HOP * 4 else seg)
     return out
+
+
+# ------------------------------------------------------------------ questions: the voice rises at the end, like a person asking
+def question_rise(a, semitones=3.0, span=0.55):
+    """Raise the pitch of the last stretch of a question gently (a smooth glide, voice character and speed unchanged).
+    Needs pyworld; without it the audio is returned as it is."""
+    try:
+        import pyworld as pw
+    except Exception:
+        return a
+    a = np.asarray(a, np.float32)
+    if len(a) < int(0.5 * SR):
+        return a
+    rms, _ = _frames(a)
+    act = np.where(rms > 0.06 * rms.max())[0]
+    if len(act) == 0:
+        return a
+    end = min(len(a), (act[-1] + 1) * HOP)
+    start = max(0, end - int((span + 0.12) * SR))
+    seg = a[start:end].astype(np.float64)
+    try:
+        f0, t = pw.harvest(seg, SR, f0_floor=70.0, f0_ceil=520.0, frame_period=5.0)
+        sp = pw.cheaptrick(seg, f0, t, SR)
+        ap = pw.d4c(seg, f0, t, SR)
+        voiced = np.where(f0 > 0)[0]
+        if len(voiced) < 8:
+            return a
+        tv = t[voiced[-1]]                                          # the glide ends on the last voiced sound
+        ramp_t = np.clip((t - (tv - span)) / span, 0, 1)
+        ramp = ramp_t * ramp_t * (3 - 2 * ramp_t)                    # smooth glide upwards
+        g = np.where(f0 > 0, 2.0 ** (semitones * ramp / 12.0), 1.0)
+        y = pw.synthesize(f0 * g, sp, ap, SR, 5.0).astype(np.float32)
+    except Exception:
+        return a
+    y = y[: len(seg)] if len(y) >= len(seg) else np.pad(y, (0, len(seg) - len(y)))
+    sc = float(np.sqrt(np.mean(seg ** 2)) + 1e-9) / float(np.sqrt(np.mean(y.astype(np.float64) ** 2)) + 1e-9)
+    y = (y * min(1.5, max(0.6, sc))).astype(np.float32)
+    nfade = min(int(0.08 * SR), len(y) // 4)
+    w = np.linspace(0, 1, nfade, dtype=np.float32)
+    y[:nfade] = a[start:start + nfade] * (1 - w) + y[:nfade] * w         # blend into the untouched part
+    out = a.copy()
+    out[start:end] = y
+    return out

@@ -407,9 +407,9 @@ def mix(plan, sent_audio, total):
             at = s["t0"] + ev["frac"] * (s["t1"] - s["t0"])
             nm = ev["name"]
             g = S.get(nm)
-            if g is None or at - last_t < 0.6:
+            if g is None or at - last_t < 0.45:
                 continue
-            _put(fx, g, at, 0.36 * ev.get("gain", 1.0))
+            _put(fx, g, at, 0.46 * ev.get("gain", 1.0))
             last_t = at
         for sh in sc["shots"]:
             if sc["kind"] == "body" and sc["style"] == "collage" and sh.get("cut_sfx") and sh["t0"] > sc["t0"] + 0.2:

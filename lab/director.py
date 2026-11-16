@@ -284,12 +284,12 @@ def sound_cues(sents, rng, scene):
     out, last, last_emo = [], None, -9
     for si, s in enumerate(sents):
         found = []
-        for rx, name in K.SFX_RULES:
+        for rx, name in list(K.SFX_RULES) + list(K.SFX_RULES_MORE):
             m = rx.search(s["text"])
             if m:
                 found.append((m.start() / max(1, len(s["text"])), name))
         found.sort()
-        for frac, name in found[:2]:
+        for frac, name in found[:3]:
             if name == last:
                 continue
             out.append(dict(sent=si, frac=frac, name=name, gain=0.9))

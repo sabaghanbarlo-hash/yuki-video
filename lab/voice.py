@@ -232,6 +232,18 @@ def _gentle(a, text, tmp):
     return read_wav(dst)
 
 
+def _glue(parts, ms=60):
+    """Join phrases with a short crossfade (the quiet edges overlap): no silence is inserted between them."""
+    out = parts[0]
+    for p in parts[1:]:
+        ov = min(int(ms / 1000 * SR), len(out) // 2, len(p) // 2)
+        if ov <= 0:
+            out = np.concatenate([out, p]); continue
+        w = np.linspace(0, 1, ov, dtype=np.float32)
+        out = np.concatenate([out[:-ov], out[-ov:] * (1 - w) + p[:ov] * w, p[ov:]])
+    return out
+
+
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
     """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
     Every sentence is spoken phrase by phrase and each phrase is brought to an even, natural pace.  Finished phrases are cached on disk."""
@@ -253,10 +265,11 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
             sp *= 0.95
         sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)
         pre, suf = E.vocal_tag(sent, sm, k)
-        phr = _phrases(sent)
+        phr = _phrases(sent) if words > 22 else [sent]          # one go for a normal sentence: no seams, no pauses in the middle
+        parts = []
         for n, ph in enumerate(phr):
             spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
-            key = hashlib.md5(f"v6|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
+            key = hashlib.md5(f"v7|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
             f = cache / f"{key}.wav"
             if not f.exists():
                 import torch, torchaudio
@@ -274,7 +287,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                     torchaudio.save(str(raw), wav, m.sampling_rate)
                     to_wav(raw, cache / f"{key}_take.wav")
                     raw.unlink(missing_ok=True)
-                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"))
+                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"), max_gap=0.07, min_gap=0.11)
                     if best is None or len(cand) < len(best):
                         best = cand
                     if not _too_slow(cand, ph):
@@ -284,9 +297,13 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                 write_wav(f, best)
             a = _gentle(read_wav(f), ph, tmp)
             a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
-            pieces.append(a)
-            if n < len(phr) - 1:
-                pieces.append(silence(0.09 if ph.endswith(",") else 0.14))      # a breath between phrases
+            parts.append(a)
+        a = _glue(parts)                                                         # phrases of one sentence run on, no gap in between
+        if sent.rstrip().endswith("?"):                                          # a question sounds like one: the voice rises at the end
+            first = sent.split()[0].lower().strip("\"'") if sent.split() else ""
+            wh = first in ("what", "why", "how", "who", "whom", "whose", "when", "where", "which")
+            a = VP.question_rise(a, 1.8 if wh else 3.4)
+        pieces.append(a)
         gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
         pieces.append(silence(gap * 0.9))
         prev_words = words

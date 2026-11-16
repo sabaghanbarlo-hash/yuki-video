@@ -280,6 +280,25 @@ SFX_RULES = [
 ]
 
 
+# more triggers (same effects): reveals, big numbers, discovery, water, energy, time, speed, space, questions
+SFX_RULES_MORE = [
+    (R(r"\b(but (here|then|wait)|plot twist|the twist|turns out|it gets (worse|weirder|better)|here.s the (thing|catch|problem))\b"), "riser"),
+    (R(r"\b(huge|massive|enormous|gigantic|colossal|giant|biggest|largest|millions?|billions?|trillions?|infinite|infinity)\b"), "impact"),
+    (R(r"\b(secret|hidden|mystery|mysterious|unknown|nobody knows|no one knows|never seen|first time)\b"), "sparkle"),
+    (R(r"\b(percent|%|\d{2,}|record|fastest|slowest|hottest|coldest|deepest|highest|longest)\b"), "ding"),
+    (R(r"\b(energy|electric\w*|power\w*|charge[ds]?|current|voltage|plasma|laser\w*|radiation)\b"), "zap"),
+    (R(r"\b(ocean|sea|water|waves?|drown\w*|swim\w*|fish|whale|shark\w*)\b"), "bubbles"),
+    (R(r"\b(spin\w*|orbit\w*|rotat\w*|revolv\w*|swirl\w*|spiral\w*|travel\w*|hurtl\w*)\b"), "whoosh_low"),
+    (R(r"\b(years|centuries|millennia|decades|ago|ancient|forever|eternity|ticking|minutes|hours)\b"), "tick"),
+    (R(r"\b(planet\w*|moon|sun|star|stars|asteroid\w*|comet\w*|meteor\w*|black hole\w*)\b"), "whoosh_low"),
+    (R(r"\b(fire|burn\w*|flames?|heat\w*|molten|lava)\b"), "rumble"),
+    (R(r"\b(wow|oh|whoa|really|seriously|no way|can you believe|imagine)\b"), "pop"),
+    (R(r"\b(dark|darkness|scary|scared|fear\w*|terrif\w+|horror|creepy|spooky|nightmare)\b"), "heartbeat"),
+    (R(r"\b(break\w*|broke|crack\w*|split|tore|torn|rip\w*|shatter\w*)\b"), "crash"),
+    (R(r"\b(found|find|finally|solved|proof|proved|breakthrough|invented|invention)\b"), "tada"),
+]
+
+
 # ------------------------------------------------------------------ WHERE a piece of narration takes place
 # alias -> (regex, weak). Aliases are the keys of director.ENV_ALIASES, so every style resolves them to a real environment.
 # "weak" words (data, room, sky ...) only count when written as a place ("in the room", "across the sky").
