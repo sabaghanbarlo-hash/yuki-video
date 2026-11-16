@@ -119,13 +119,13 @@ def remove_breaths(a, level=None):
     return a[keep]
 
 
-def tighten(a, max_gap=0.14, min_gap=0.20, level=None):
+def tighten(a, max_gap=0.14, min_gap=0.20, level=None, thr=0.09):
     """Shorten quiet runs longer than `min_gap` to `max_gap`. Removes dead air without touching speech."""
     rms, _ = _frames(a)
     if len(rms) == 0:
         return a
     lv = level or _level(rms)
-    quiet = rms < 0.09 * lv
+    quiet = rms < thr * lv
     pieces, pos = [], 0
     for s, e in _runs(quiet):
         dur = (e - s) * 0.010
@@ -158,10 +158,10 @@ def trim_edges(a, keep=0.14):
     return out
 
 
-def polish(a, max_gap=0.14, min_gap=0.20):
+def polish(a, max_gap=0.14, min_gap=0.20, thr=0.09):
     """Full clean-up of one synthesized sentence."""
     a = remove_breaths(a)
-    a = tighten(a, max_gap=max_gap, min_gap=min_gap)
+    a = tighten(a, max_gap=max_gap, min_gap=min_gap, thr=thr)
     a = trim_edges(a)
     return _fade(a.astype(np.float32))
 

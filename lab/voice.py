@@ -232,6 +232,18 @@ def _gentle(a, text, tmp):
     return read_wav(dst)
 
 
+def _flat(t):
+    """Text for the voice model: no commas, colons, dashes, brackets or quotes inside the sentence, so it is read straight through without a
+    pause; only the sentence's own ending (. ? !) stays.  Commas inside numbers (1,000) are kept."""
+    t = re.sub(r"(\.{2,}|\u2026)\s*$", ".", t)                  # a trailing ellipsis becomes a plain full stop
+    t = t.replace("\u2026", " ")
+    t = re.sub(r"(?<!\d),|,(?!\d)", " ", t)
+    t = re.sub(r"[;:()\[\]\"\u201c\u201d]", " ", t)
+    t = re.sub(r"\s*[\u2013\u2014]+\s*|\s-+\s", " ", t)
+    t = re.sub(r"\.{2,}", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def _glue(parts, ms=60):
     """Join phrases with a short crossfade (the quiet edges overlap): no silence is inserted between them."""
     out = parts[0]
@@ -265,10 +277,10 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
             sp *= 0.95
         sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)
         pre, suf = E.vocal_tag(sent, sm, k)
-        phr = _phrases(sent) if words > 22 else [sent]          # one go for a normal sentence: no seams, no pauses in the middle
+        phr = _phrases(sent) if words > 30 else [sent]          # one go for a normal sentence: no seams, no pauses in the middle
         parts = []
         for n, ph in enumerate(phr):
-            spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
+            spoken = (pre if n == 0 else "") + _flat(ph) + (suf if n == len(phr) - 1 else "")
             key = hashlib.md5(f"v7|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
             f = cache / f"{key}.wav"
             if not f.exists():
@@ -287,7 +299,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                     torchaudio.save(str(raw), wav, m.sampling_rate)
                     to_wav(raw, cache / f"{key}_take.wav")
                     raw.unlink(missing_ok=True)
-                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"), max_gap=0.07, min_gap=0.11)
+                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"), max_gap=0.04, min_gap=0.08, thr=0.16)
                     if best is None or len(cand) < len(best):
                         best = cand
                     if not _too_slow(cand, ph):
