@@ -390,7 +390,7 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
     # every shot knows how Yuki looked just before it (her arms ease from there)
     prev = prev_scene["shots"][-1] if prev_scene and prev_scene.get("shots") else None
     for sh in shots:
-        sh["prev"] = dict(pose=prev["pose"], face=prev["face"], flip=prev["flip"]) if prev else dict(pose="rest", face="neutral", flip=sh["flip"])
+        sh["prev"] = dict(pose=prev.get("pose", "rest"), face=prev.get("face", "neutral"), flip=prev.get("flip", sh["flip"])) if prev else dict(pose="rest", face="neutral", flip=sh["flip"])
         prev = sh
     scene["_cc"] = st
     return shots
