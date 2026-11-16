@@ -1,0 +1,13 @@
+# The Deepest Place on Earth
+
+## The descent
+[style: voxel]
+Imagine sinking in a tiny submarine. At first, the water is bright blue and full of fish.
+At 200 meters, the sunlight fades. At 1000 meters, it is completely dark and the cold is crushing.
+
+## The bottom
+[style: toon]
+At the very bottom of the Mariana Trench, 11 kilometers down, the pressure is more than 1000 times what you feel at the surface. A single crab-sized creature there lives under the weight of a thousand elephants.
+
+## Life in the dark
+Nobody expected to find life here. But the scientists were wrong, and the deep sea is full of strange, glowing animals.
