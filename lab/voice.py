@@ -232,30 +232,6 @@ def _gentle(a, text, tmp):
     return read_wav(dst)
 
 
-def _flat(t):
-    """Text for the voice model: no commas, colons, dashes, brackets or quotes inside the sentence, so it is read straight through without a
-    pause; only the sentence's own ending (. ? !) stays.  Commas inside numbers (1,000) are kept."""
-    t = re.sub(r"(\.{2,}|\u2026)\s*$", ".", t)                  # a trailing ellipsis becomes a plain full stop
-    t = t.replace("\u2026", " ")
-    t = re.sub(r"(?<!\d),|,(?!\d)", " ", t)
-    t = re.sub(r"[;:()\[\]\"\u201c\u201d]", " ", t)
-    t = re.sub(r"\s*[\u2013\u2014]+\s*|\s-+\s", " ", t)
-    t = re.sub(r"\.{2,}", " ", t)
-    return re.sub(r"\s+", " ", t).strip()
-
-
-def _glue(parts, ms=60):
-    """Join phrases with a short crossfade (the quiet edges overlap): no silence is inserted between them."""
-    out = parts[0]
-    for p in parts[1:]:
-        ov = min(int(ms / 1000 * SR), len(out) // 2, len(p) // 2)
-        if ov <= 0:
-            out = np.concatenate([out, p]); continue
-        w = np.linspace(0, 1, ov, dtype=np.float32)
-        out = np.concatenate([out[:-ov], out[-ov:] * (1 - w) + p[:ov] * w, p[ov:]])
-    return out
-
-
 def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruct="female, young adult, warm, expressive"):
     """Voice Studio (OmniVoice) narration: breaths and dead air removed, delivery set per mood (see voice_polish.py).
     Every sentence is spoken phrase by phrase and each phrase is brought to an even, natural pace.  Finished phrases are cached on disk."""
@@ -277,11 +253,10 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
             sp *= 0.95
         sp = round(sp * (1 + 0.025 * E._jit(sent, 1)), 3)
         pre, suf = E.vocal_tag(sent, sm, k)
-        phr = _phrases(sent) if words > 30 else [sent]          # one go for a normal sentence: no seams, no pauses in the middle
-        parts = []
+        phr = _phrases(sent)
         for n, ph in enumerate(phr):
-            spoken = (pre if n == 0 else "") + _flat(ph) + (suf if n == len(phr) - 1 else "")
-            key = hashlib.md5(f"v7|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
+            spoken = (pre if n == 0 else "") + ph + (suf if n == len(phr) - 1 else "")
+            key = hashlib.md5(f"v6|{rid}|{sp}|{steps}|{spoken}".encode()).hexdigest()[:16]
             f = cache / f"{key}.wav"
             if not f.exists():
                 import torch, torchaudio
@@ -299,7 +274,7 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                     torchaudio.save(str(raw), wav, m.sampling_rate)
                     to_wav(raw, cache / f"{key}_take.wav")
                     raw.unlink(missing_ok=True)
-                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"), max_gap=0.04, min_gap=0.08, thr=0.16)
+                    cand = VP.polish(read_wav(cache / f"{key}_take.wav"))
                     if best is None or len(cand) < len(best):
                         best = cand
                     if not _too_slow(cand, ph):
@@ -307,16 +282,11 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                         break
                 (cache / f"{key}_take.wav").unlink(missing_ok=True)
                 write_wav(f, best)
-            a = VP.tighten(read_wav(f), max_gap=0.06, min_gap=0.14, thr=0.35)       # soft dips of 0.14 s or more inside a sentence (the voice's own hesitations) are cut short
-            a = _gentle(a, ph, tmp)
+            a = _gentle(read_wav(f), ph, tmp)
             a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
-            parts.append(a)
-        a = _glue(parts)                                                         # phrases of one sentence run on, no gap in between
-        if sent.rstrip().endswith("?"):                                          # a question sounds like one: the voice rises at the end
-            first = sent.split()[0].lower().strip("\"'") if sent.split() else ""
-            wh = first in ("what", "why", "how", "who", "whom", "whose", "when", "where", "which")
-            a = VP.question_rise(a, 1.8 if wh else 3.4)
-        pieces.append(a)
+            pieces.append(a)
+            if n < len(phr) - 1:
+                pieces.append(silence(0.09 if ph.endswith(",") else 0.14))      # a breath between phrases
         gap = cfg["gap"] + (0.12 if sent.endswith("?") else 0.0) + (0.22 if words <= 6 and sent.endswith("?") else 0.0)
         pieces.append(silence(gap * 0.9))
         prev_words = words

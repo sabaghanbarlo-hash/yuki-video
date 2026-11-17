@@ -80,7 +80,7 @@ def voice(plan, args, tmp):
         return out
     out = []
     for n, (sc, i, s) in enumerate(sents):
-        key = hashlib.md5(f"v3|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
+        key = hashlib.md5(f"v4|{args.tts}|{getattr(args, 'voice', '')}|{getattr(args, 'energy', 1)}|{getattr(args, 'speed', 1)}|{s['mood']}|{s['spoken']}".encode()).hexdigest()[:16]
         f = tmp / "voice" / f"{key}.npy"
         if f.exists() and not getattr(args, "audio_dir", None):
             out.append(np.load(f)); continue
