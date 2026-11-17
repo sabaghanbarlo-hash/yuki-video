@@ -307,7 +307,8 @@ def synth_voicestudio(text, ref, tmp, speed=1.0, steps=16, emotion=None, instruc
                         break
                 (cache / f"{key}_take.wav").unlink(missing_ok=True)
                 write_wav(f, best)
-            a = _gentle(read_wav(f), ph, tmp)
+            a = VP.tighten(read_wav(f), max_gap=0.06, min_gap=0.14, thr=0.35)       # soft dips of 0.14 s or more inside a sentence (the voice's own hesitations) are cut short
+            a = _gentle(a, ph, tmp)
             a = VP.gain_db(a, cfg["db"] + (1.0 if sent.endswith("!") else 0.0))
             parts.append(a)
         a = _glue(parts)                                                         # phrases of one sentence run on, no gap in between
