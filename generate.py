@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Yuki Lab: paste a script, get a finished animated science video (narration, scenes, subtitles, sound) as an MP4.
+"""Yuki's Mind Lab: paste a script, get a finished animated explainer video (narration, scenes, subtitles, sound) as an MP4.
 
     python generate.py scripts/sample.txt --tts gemini           # natural, emotional Gemini voice (needs GEMINI_API_KEY); falls back to Kokoro
     python generate.py scripts/sample.txt                        # Kokoro voice matched to yours (voice/match.json)

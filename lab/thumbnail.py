@@ -61,7 +61,7 @@ def make_thumbnail(text, out, seed=0, style=None):
         col = O.ACCENTS[0] if i == len(lines) - 1 else (255, 255, 255)
         t_im = O.outlined(l, size, col, (18, 14, 40), sw=9)
         O.paste(im, t_im, 48, y + int(i * size * 1.12))
-    O.paste(im, O.chip_img("YUKI LAB", O.ACCENTS[1], 34), 52, 44)
+    O.paste(im, O.chip_img("YUKI'S MIND LAB", O.ACCENTS[1], 34), 52, 44)
     im.convert("RGB").save(out, quality=90)
     return out
 

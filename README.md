@@ -1,6 +1,7 @@
-# Yuki Lab
+# Yuki's Mind Lab
 
-A code-drawn YouTube animation studio for **science explainers, fascinating facts and "what if" scenarios**.
+A code-drawn YouTube animation studio for the **Yuki's Mind Lab** channel: **psychology, philosophy and science explained simply** (habits, overthinking, thought experiments, the brain), plus fascinating facts and "what if" scenarios.
+(The engine was called *Yuki Lab* before; the repository names are unchanged so links and tokens keep working.)
 Paste a script → the lab splits it into scenes, chooses places, characters and camera moves from what the words say,
 records the narration (the same matched voice as Yuki Studio), adds subtitles, transitions and sound, and renders an **MP4**.
 
@@ -19,7 +20,7 @@ camera move, who is on screen, what they do and what pops up. Different scripts 
 
 ## Use it
 
-**Web page (easiest):** open the Yuki Lab page (GitHub Pages of the `yuki-studio` repo), paste a script, press *Preview scenes* (≈1 min,
+**Web page (easiest):** open the Yuki's Mind Lab page (GitHub Pages of the `yuki-studio` repo), paste a script, press *Preview scenes* (≈1 min,
 one still per scene) and *Make the video*. The MP4 appears under the run's *Artifacts → video*; it can also be uploaded to YouTube.
 
 **GitHub Actions:** Actions → *Make video* → Run workflow (script path, look, seed, voice, optional uploaded narration).

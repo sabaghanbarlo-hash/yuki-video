@@ -46,21 +46,27 @@ from lab import knowledge as K
 _text = open(script, encoding="utf-8").read()
 title, _scenes = parse(_text)
 first = _scenes[0].sentences[0].text if _scenes and _scenes[0].sentences else ""
-topic = K.topic_of(_text) or "science"
-title = (title or os.path.splitext(os.path.basename(script))[0].replace("-", " ").title())[:100]
+topic = K.topic_of(_text) or "psychology"
+def _hook_title(t, n=90):                                       # no "# Title" line: use the opening sentence, not the file name
+    t = re.sub(r"\s+", " ", t or "").strip().rstrip(".!")
+    if len(t) > n:
+        t = t[:n].rsplit(" ", 1)[0].rstrip(",;:- ") + "..."
+    return t
+title = (title or _hook_title(first) or os.path.splitext(os.path.basename(script))[0].replace("-", " ").title())[:100]
 side = os.path.splitext(script)[0] + ".desc"
 if os.path.exists(side) and open(side, encoding="utf-8").read().strip():
     desc = open(side, encoding="utf-8").read().strip()
 else:
     desc = ((first or "")[:220].rstrip() + "\n\n" if first else "") + \
-        "Yuki Lab: animated science explainers, fascinating facts and what-if scenarios.\n\n#science #education #whatif"
+        "Yuki's Mind Lab: psychology, philosophy and science explained simply, for the overthinkers.\n\n#psychology #philosophy #selfimprovement"
 TAGS = {"space": "space", "earth": "earth science", "ocean": "ocean", "weather": "weather", "volcano": "volcano", "ice": "ice", "desert": "desert", "nature": "nature",
         "body": "human body", "brain": "brain", "micro": "biology", "physics": "physics", "tech": "technology", "city": "cities", "history": "history", "disaster": "disasters"}
 _cred = os.path.splitext(mp4)[0] + ".credits.txt"
 if _cred and os.path.exists(_cred):
     desc = desc + "\n\n" + open(_cred, encoding="utf-8").read().strip()
 meta = {"snippet": {"title": title, "description": desc[:4900], "categoryId": "27",
-                    "tags": ["science", "explained", "what if", "facts", "animation", TAGS.get(topic, "science"), "Yuki Lab"]},
+                    "tags": list(dict.fromkeys(["psychology", "philosophy", "science", "self improvement", "mental health", "explained", "animation",
+                                                TAGS.get(topic, "psychology"), "Yuki's Mind Lab"]))},
         "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False}}
 size = os.path.getsize(mp4)
 print(f"Title: {title}\nPrivacy: {PRIVACY}\nFile: {mp4} ({size / 1e6:.1f} MB)", flush=True)
