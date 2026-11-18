@@ -159,7 +159,7 @@ def bars_img(items, width=900, prog=1.0, unit=""):
 
 
 @functools.lru_cache(maxsize=64)
-def title_card(title, sub="YUKI LAB", w=W, h=H):
+def title_card(title, sub="YUKI'S MIND LAB", w=W, h=H):
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     t = big_text(title, 92, (255, 255, 255), 1040)
     im.alpha_composite(t, ((w - t.width) // 2, int(h * 0.42 - t.height / 2)))

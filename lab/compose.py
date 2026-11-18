@@ -141,7 +141,7 @@ class Compositor:
         if sc["kind"] in ("title", "outro"):
             p = clamp(lt / 0.7)
             title = sc.get("card_title", "")
-            card = O.title_card(title, "YUKI LAB" if sc["kind"] == "title" else "SUBSCRIBE FOR MORE")
+            card = O.title_card(title, "YUKI'S MIND LAB" if sc["kind"] == "title" else "SUBSCRIBE FOR MORE")
             s = max(0.02, ease_back(p))
             c2 = card.resize((max(1, int(W * s)), max(1, int(H * s))), Image.BILINEAR)
             O.paste(im, c2, (W - c2.width) // 2, (H - c2.height) // 2, clamp(p * 2))
