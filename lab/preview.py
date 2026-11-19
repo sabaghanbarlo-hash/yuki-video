@@ -6,7 +6,9 @@ from .compose import Compositor
 import numpy as np
 
 
-def make_preview(text, args, outdir, size=(640, 360)):
+def make_preview(text, args, outdir, size=None):
+    from . import fmt as FM
+    size = size or ((360, 640) if FM.is_short() else (640, 360))
     outdir = Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
     plan = P.build_plan(text, args.seed, args.style, args.max_scenes)
     from . import media as M

@@ -10,6 +10,7 @@ import json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 
 mp4, script = sys.argv[1], sys.argv[2]
 PRIVACY = os.environ.get("PRIVACY", "private")
+IS_SHORT = os.environ.get("FORMAT", "long").strip().lower() == "short"
 need = [k for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN") if not os.environ.get(k)]
 if need:
     sys.exit("Missing repository secret(s): " + ", ".join(need))
@@ -64,9 +65,13 @@ TAGS = {"space": "space", "earth": "earth science", "ocean": "ocean", "weather":
 _cred = os.path.splitext(mp4)[0] + ".credits.txt"
 if _cred and os.path.exists(_cred):
     desc = desc + "\n\n" + open(_cred, encoding="utf-8").read().strip()
+if IS_SHORT:                                                    # a short vertical video that says #Shorts is filed under Shorts
+    title = (title[:90].rstrip() + " #Shorts")[:100]
+    if "#shorts" not in desc.lower():
+        desc = desc.rstrip() + " #Shorts"
 meta = {"snippet": {"title": title, "description": desc[:4900], "categoryId": "27",
                     "tags": list(dict.fromkeys(["psychology", "philosophy", "science", "self improvement", "mental health", "explained", "animation",
-                                                TAGS.get(topic, "psychology"), "Yuki's Mind Lab"]))},
+                                                TAGS.get(topic, "psychology"), "Yuki's Mind Lab"] + (["shorts", "youtube shorts"] if IS_SHORT else [])))},
         "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False}}
 size = os.path.getsize(mp4)
 print(f"Title: {title}\nPrivacy: {PRIVACY}\nFile: {mp4} ({size / 1e6:.1f} MB)", flush=True)

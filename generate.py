@@ -10,6 +10,7 @@
     python generate.py scripts/sample.txt --preview out/prev     # scene stills + plan.json, no voice needed (fast)
     python generate.py scripts/sample.txt --style voxel          # force one look: flat | voxel | toon | collage (default: chosen per scene)
     python generate.py scripts/collage-sample.txt --style collage  # Yuki in a corner, a picture every few seconds (see README)
+    python generate.py scripts/short-sample.txt --format short   # a vertical 9:16 YouTube Short in the same Collage look
 
 Script format: see README.md. Everything but the words is optional: the director chooses places, looks, characters and
 camera moves from what the script is about.
@@ -41,6 +42,7 @@ def main():
     ap.add_argument("--audio-dir", default=None, help="folder with 001.wav, 002.wav ... one recording per sentence")
     ap.add_argument("--style", default=None, choices=["flat", "voxel", "toon", "collage"], help="force one visual style for every scene (collage = Yuki + changing pictures)")
     ap.add_argument("--media", default="drawn", choices=["auto", "ai", "stock", "local", "drawn"], help="collage pictures: auto (yours > AI > stock > drawn), ai, stock, local (media/ folder only) or drawn (offline)")
+    ap.add_argument("--format", default="long", choices=["long", "short"], help="long = 1280x720 YouTube video (default); short = 720x1280 vertical YouTube Short (Collage look)")
     ap.add_argument("--seed", type=int, default=0, help="change it to get a different arrangement of the same script")
     ap.add_argument("--max-scenes", type=int)
     ap.add_argument("--workers", type=int, default=None)
@@ -49,6 +51,10 @@ def main():
     ap.add_argument("--export-beats", action="store_true", help="list the numbered sentences (to record them yourself) and stop")
     args = ap.parse_args()
 
+    from lab import fmt as FM
+    FM.set_format(args.format)
+    if args.format == "short":
+        args.style = "collage"                                   # Shorts are always the Collage look ("college" videos), drawn vertically
     match = {}
     mp = HERE / "voice" / "match.json"
     if mp.exists():
@@ -98,6 +104,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     total, plan = P.make(text, args, out, tmp)
     print(f"done: {out}  ({total:.1f}s)")
+    if args.format == "short" and total > 180:
+        print(f"::warning::This Short is {total:.0f} s long. YouTube only treats vertical videos up to 3 minutes as Shorts (60 s or less gets the most reach): shorten the script.")
 
 
 if __name__ == "__main__":

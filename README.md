@@ -38,6 +38,25 @@ one still per scene) and *Make the video*. The MP4 appears under the run's *Arti
 
 Rendering speed: about 8 frames/s per core; a 3-minute video takes roughly 10-15 minutes on a 2-core runner.
 
+## Shorts (`--format short`)
+
+Every video can be made in two formats:
+
+| Format | Size | What it is |
+|---|---|---|
+| **long** (default) | 1280 x 720, 16:9 | the normal YouTube video |
+| **short** | 720 x 1280, 9:16 | a vertical YouTube Short, always in the **Collage look** (cream page, Yuki reacting, a new picture every few seconds) |
+
+On the vertical page the picture sits on top and Yuki stands big at the bottom (she still switches sides, reacts with her faces, poses and
+reaction cards). Pictures are cut to portrait shapes, big typed words wrap onto several lines and number cards shrink to fit. The narration,
+voices, sound effects, music and subtitles-free delivery are exactly the same as in the long video.
+
+- **Web page**: choose *Short* in the *Format* card (the Look cards switch to Collage by themselves).
+- **GitHub Actions**: *Make video* and *Preview scenes* have a `format` input (`long` / `short`).
+- **Locally**: `python generate.py scripts/short-sample.txt --format short` (add `--preview out/prev` for stills only).
+- **Length**: aim for 30-60 seconds (about 80-150 words). YouTube accepts vertical videos up to 3 minutes as Shorts; the run warns when yours is longer.
+- **Upload**: a Short gets `#Shorts` in its title and description and the `shorts` tags. No thumbnail is made for Shorts (YouTube picks a frame).
+
 ## Collage look (`--style collage`)
 
 Cream paper, Yuki reacting in a corner, and a new picture every 1.5-4 seconds: framed photos, colour-backed panels, paper-cut collages,

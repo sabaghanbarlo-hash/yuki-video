@@ -9,6 +9,9 @@ on:
       script:
         description: "Script file, e.g. scripts/my-video.txt"
         default: "scripts/sample.txt"
+      format:
+        description: "long (16:9) or short (vertical 9:16)"
+        default: "long"
       style:
         description: "auto, flat, voxel, toon or collage"
         default: "auto"
@@ -29,6 +32,7 @@ jobs:
     timeout-minutes: 30
     env:
       SCRIPT: ${{ github.event.inputs.script }}
+      FORMAT: ${{ github.event.inputs.format }}
       STYLE: ${{ github.event.inputs.style }}
       SEED: ${{ github.event.inputs.seed }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -37,6 +41,10 @@ jobs:
       - name: Check inputs
         run: |
           [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
+          [[ "$FORMAT" == "long" || "$FORMAT" == "short" ]] || FORMAT=long
+          echo "FORMAT=$FORMAT" >> "$GITHUB_ENV"
+          if [ "$FORMAT" = "short" ]; then STYLE=collage; fi
+          echo "STYLE=$STYLE" >> "$GITHUB_ENV"
           [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" || "$STYLE" == "collage" ]] || { echo "::error::bad style"; exit 1; }
           [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
           echo "SEED=$SEED" >> "$GITHUB_ENV"
@@ -52,7 +60,7 @@ jobs:
           name=$(basename "${SCRIPT%.txt}")
           STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
           rm -rf "previews/$name"
-          python -u generate.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --preview "previews/$name"
+          python -u generate.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --format "${FORMAT:-long}" --preview "previews/$name"
       - name: Save the previews
         run: |
           git config user.name "github-actions"

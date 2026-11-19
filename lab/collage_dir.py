@@ -17,6 +17,7 @@ This module turns the sentences of one scene into those beats (shots). Everythin
 import re
 
 from . import knowledge as K
+from . import fmt as FM
 
 R = lambda p: re.compile(p, re.I)
 
@@ -355,6 +356,8 @@ def plan_shots(scene, rng, prev_scene, first_overall=False):
             if rng.random() < 0.4:
                 kb["z0"], kb["z1"] = kb["z1"], kb["z0"]
             size = {"full": (1024, 576), "mid": (896, 576), "center": (896, 512), "split": (640, 704), "fullbleed": (1024, 576), "title": (768, 512)}.get(layout, (896, 576))
+            if FM.is_short():                                       # vertical page: portrait pictures
+                size = {"full": (672, 704), "mid": (608, 640), "center": (640, 608), "split": (608, 336), "fullbleed": (576, 1024), "title": (640, 480)}.get(layout, (640, 608))
             if reuse and st.get("queries"):
                 queries, stock_queries, shot_seed = st["queries"], st["stock"], st["seed"]
                 split = len(queries) > 1 and layout == "split"

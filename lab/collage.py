@@ -44,8 +44,33 @@ def paper():
 
 
 # ------------------------------------------------------------------ geometry
+def geometry_portrait(layout, side):
+    """The vertical (Short) page, 720 x 1280: the picture on top, Yuki big at the bottom (she alternates left / right like she does in the wide video)."""
+    r = side == "r"
+    yx = 235 if r else W - 235
+    if layout == "full":
+        return dict(panels=[(24, 48, 672, 690)], yuki=(yx, H + 30, 0.88))
+    if layout == "mid":
+        return dict(panels=[(60, 80, 600, 640)], yuki=(yx, H + 30, 0.88))
+    if layout == "center":
+        return dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.86))
+    if layout == "split":
+        return dict(panels=[(60, 36, 600, 330), (60, 386, 600, 330)], yuki=(yx, H + 34, 0.86))
+    if layout == "fullbleed":
+        return dict(panels=[(0, 0, W, H)], yuki=(yx, H + 40, 0.8))
+    if layout == "title":
+        return dict(panels=[(40, 250, 640, 470)], yuki=(yx, H + 34, 0.86), text=(30, 44, 660, 190))
+    if layout == "icons":
+        return dict(panels=[], yuki=(W // 2, H + 36, 0.8))
+    if layout == "stat":
+        return dict(panels=[], yuki=(yx, H + 30, 0.88), text=(30, 170, 660, 400))
+    return dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.78))
+
+
 def geometry(layout, side):
     """-> dict(panels=[(x, y, w, h)], yuki=(x, floor_y, scale)). side = where the panel sits ('l' / 'r'); Yuki takes the other corner."""
+    if H > W:
+        return geometry_portrait(layout, side)
     r = side == "r"
     if layout == "full":
         return dict(panels=[(236 if r else 34, 38, 1010, 566)], yuki=(150 if r else 1130, H + 92, 0.72))
@@ -282,10 +307,11 @@ class CollageStage:
                 self._dframe.clear()
             im = stage.frame(sshot, max(0.0, q - 0.0) % 40.0, 40.0, 0.0, 0.0, q).convert("RGB")
             ar = pw / ph
-            if W / H > ar:
-                nw = int(H * ar); im = im.crop(((W - nw) // 2, 0, (W - nw) // 2 + nw, H))
+            iw, ih = im.size                                          # the drawn stage is always 1280 x 720; cut the panel's shape out of it
+            if iw / ih > ar:
+                nw = int(ih * ar); im = im.crop(((iw - nw) // 2, 0, (iw - nw) // 2 + nw, ih))
             else:
-                nh = int(W / ar); im = im.crop((0, (H - nh) // 2, W, (H - nh) // 2 + nh))
+                nh = int(iw / ar); im = im.crop((0, (ih - nh) // 2, iw, (ih - nh) // 2 + nh))
             self._dframe[fkey] = im.resize((pw, ph), Image.BILINEAR)
         return self._dframe[fkey]
 
@@ -378,12 +404,33 @@ class CollageStage:
         n = int(len(txt) * clamp(t_rel / 0.55) + 0.999)
         shown = txt[:max(1, n)]
         size = 88 if len(txt) <= 14 else 72 if len(txt) <= 22 else 58
-        f = font(size, "medium")
         im = Image.new("RGBA", (tw_, th), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
-        w_ = d.textlength(shown, font=f)
-        full_w = d.textlength(txt, font=f)
-        d.text(((tw_ - full_w) / 2, (th - size) / 2 - 8), shown, font=f, fill=INK)
+        f = font(size, "medium")
+        if d.textlength(txt, font=f) <= tw_ - 24:                    # one line (always the case on the wide page)
+            full_w = d.textlength(txt, font=f)
+            d.text(((tw_ - full_w) / 2, (th - size) / 2 - 8), shown, font=f, fill=INK)
+        else:                                                         # too wide (the vertical page): wrap into lines, shrink until it fits
+            while True:
+                f = font(size, "medium")
+                lines, cur = [], ""
+                for wd in txt.split():
+                    t2 = (cur + " " + wd).strip()
+                    if d.textlength(t2, font=f) <= tw_ - 24 or not cur:
+                        cur = t2
+                    else:
+                        lines.append(cur); cur = wd
+                lines.append(cur)
+                if (len(lines) * size * 1.18 <= th - 8 and max(d.textlength(l, font=f) for l in lines) <= tw_ - 24) or size <= 30:
+                    break
+                size -= 4
+            y0 = (th - len(lines) * size * 1.18) / 2
+            left = len(shown)
+            for i, ln in enumerate(lines):
+                part = ln[:max(0, left)]
+                left -= len(ln) + 1
+                if part:
+                    d.text(((tw_ - d.textlength(ln, font=f)) / 2, y0 + i * size * 1.18), part, font=f, fill=INK)
         paste(frame, im, tx, ty, ent[3])
 
     def _stat(self, frame, shot, geo, t_rel, ent):
@@ -395,11 +442,16 @@ class CollageStage:
         f = font(size, "bold")
         im = Image.new("RGBA", (tw_, th), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
+        while size > 40 and d.textlength(num, font=f) > tw_ - 20:      # (vertical page: the number must fit the narrower column)
+            size -= 8; f = font(size, "bold")
         col = shade(PANEL_COLOURS[shot["colour"] % len(PANEL_COLOURS)], -0.38)
         w_ = d.textlength(num, font=f)
         d.text(((tw_ - w_) / 2, 40), num, font=f, fill=col)
         if st["sub"]:
-            f2 = font(48, "medium")
+            s2 = 48
+            f2 = font(s2, "medium")
+            while s2 > 24 and d.textlength(st["sub"], font=f2) > tw_ - 20:
+                s2 -= 4; f2 = font(s2, "medium")
             w2 = d.textlength(st["sub"], font=f2)
             d.text(((tw_ - w2) / 2, 40 + size * 1.35), st["sub"], font=f2, fill=INK)
         paste(frame, im, tx, ty + (1 - ease_out(clamp(t_rel / 0.4))) * 30, ent[3])
@@ -410,6 +462,8 @@ class CollageStage:
         n = len(items)
         xs = {1: [1020], 2: [230, 1050], 3: [190, 1090, 880]}[max(1, n)]
         ys = {1: 340, 2: 330, 3: 330}[max(1, n)]
+        if H > W:                                                      # vertical page: spread them down the middle
+            pos = {1: [(360, 430)], 2: [(200, 430), (520, 430)], 3: [(180, 360), (540, 360), (360, 620)]}[max(1, n)]
         pal = F.PALETTES["day"]
         for i, it in enumerate(items):
             t0 = 0.15 + i * max(0.4, min(1.1, dur * 0.28))
@@ -418,6 +472,8 @@ class CollageStage:
                 continue
             p = ease_back(clamp(lt / 0.4))
             cx, cy = xs[i], ys - (170 if (n == 3 and i == 2) else 0)
+            if H > W:
+                cx, cy = pos[i]
             cv = Cv(300, 300, 2)
             try:
                 E.draw_entity(cv, it["entity"], 150, 130, 190 * max(0.05, p), t_abs, pal, shot["seed"] + i)
@@ -434,7 +490,7 @@ class CollageStage:
     def _yuki(self, frame, shot, geo, t_rel, mouth, t_abs):
         x, fy, s = geo["yuki"]
         if shot["layout"] in ("icons",):
-            x = 640
+            x = W / 2
         blend = clamp(t_rel / 0.30)
         prev = shot.get("prev") or {}
         pp = prev.get("pose")

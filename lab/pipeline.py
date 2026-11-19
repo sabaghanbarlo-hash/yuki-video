@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from . import knowledge as K
+from . import fmt as FM
 from . import voice as A
 from . import voice_polish as VP
 from . import sfx as S
@@ -462,7 +463,7 @@ def _init_worker(plan, mouth, amp, size):
 def _render_chunk(job):
     idx, f0, f1, path = job
     comp = _G["comp"]
-    ff = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "1280x720", "-r", str(FPS), "-i", "-",
+    ff = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{FM.SIZES[FM.current()][0]}x{FM.SIZES[FM.current()][1]}", "-r", str(FPS), "-i", "-",
                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-g", "48", str(path)], stdin=subprocess.PIPE)
     for fr in range(f0, f1):
         ff.stdin.write(comp.frame_bytes(fr))

@@ -6,6 +6,9 @@ on:
       script:
         description: "Script file, e.g. scripts/my-video.txt"
         default: "scripts/sample.txt"
+      format:
+        description: "long (normal 16:9 video) or short (vertical 9:16 YouTube Short, always the Collage look)"
+        default: "long"
       style:
         description: "Look: auto (the director picks per scene), flat, voxel, toon or collage (Yuki in a corner + a picture every few seconds)"
         default: "auto"
@@ -51,6 +54,7 @@ jobs:
     timeout-minutes: 350
     env:
       SCRIPT: ${{ github.event.inputs.script }}
+      FORMAT: ${{ github.event.inputs.format }}
       STYLE: ${{ github.event.inputs.style }}
       MEDIA: ${{ github.event.inputs.media }}
       SEED: ${{ github.event.inputs.seed }}
@@ -68,6 +72,10 @@ jobs:
       - name: Check inputs
         run: |
           [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
+          [[ "$FORMAT" == "long" || "$FORMAT" == "short" ]] || FORMAT=long
+          echo "FORMAT=$FORMAT" >> "$GITHUB_ENV"
+          if [ "$FORMAT" = "short" ]; then STYLE=collage; fi
+          echo "STYLE=$STYLE" >> "$GITHUB_ENV"
           [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" || "$STYLE" == "collage" ]] || { echo "::error::style must be auto, flat, voxel, toon or collage"; exit 1; }
           [[ "$MEDIA" == "auto" || "$MEDIA" == "ai" || "$MEDIA" == "stock" || "$MEDIA" == "local" || "$MEDIA" == "drawn" ]] || MEDIA=drawn
           echo "MEDIA=$MEDIA" >> "$GITHUB_ENV"
@@ -179,7 +187,7 @@ jobs:
           mkdir -p output
           name=$(basename "${SCRIPT%.txt}")
           STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
-          STYLE_ARG="$STYLE_ARG --media ${MEDIA:-drawn}"
+          STYLE_ARG="$STYLE_ARG --media ${MEDIA:-drawn} --format ${FORMAT:-long}"
           if [ -n "$AUDIO" ]; then
             gen "$SCRIPT" --audio "$AUDIO" --seed "$SEED" $STYLE_ARG --out "output/$name.mp4"
           elif [ "$VOICE" = "voicestudio" ]; then
@@ -216,6 +224,7 @@ jobs:
           ATTEMPT: ${{ github.event.inputs.attempt }}
           MAX_ATTEMPTS: "8"
           IN_SCRIPT: ${{ github.event.inputs.script }}
+          IN_FORMAT: ${{ github.event.inputs.format }}
           IN_STYLE: ${{ github.event.inputs.style }}
           IN_MEDIA: ${{ github.event.inputs.media }}
           IN_SEED: ${{ github.event.inputs.seed }}
@@ -232,12 +241,13 @@ jobs:
           if [ "$next" -gt "$MAX_ATTEMPTS" ]; then echo "::error::Gave up after $ATTEMPT runs. Run again by hand if you want to keep going."; exit 1; fi
           echo "Time limit reached after run $ATTEMPT. Starting run $next with the same inputs."
           gh workflow run generate.yml --ref "$GITHUB_REF_NAME" \
-            -f script="$IN_SCRIPT" -f style="$IN_STYLE" -f media="$IN_MEDIA" -f seed="$IN_SEED" \
+            -f script="$IN_SCRIPT" -f format="$IN_FORMAT" -f style="$IN_STYLE" -f media="$IN_MEDIA" -f seed="$IN_SEED" \
             -f energy="$IN_ENERGY" -f voice="$IN_VOICE" -f audio="$IN_AUDIO" \
             -f upload="$IN_UPLOAD" -f privacy="$IN_PRIVACY" \
             -f auto_continue="$AUTO" -f attempt="$next"
 
       - name: Make the thumbnail
+        if: ${{ github.event.inputs.format != 'short' }}
         continue-on-error: true
         run: |
           name=$(basename "${SCRIPT%.txt}")
@@ -259,6 +269,7 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          FORMAT: ${{ github.event.inputs.format }}
         run: |
           name=$(basename "${SCRIPT%.txt}")
           mkdir -p results
