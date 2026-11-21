@@ -1,4 +1,3 @@
-scripts/short-why-time-speeds-up.txt
 scripts/short-ship-of-theseus.txt
 scripts/short-stoic-control.txt
 scripts/short-cocktail-party-effect.txt
