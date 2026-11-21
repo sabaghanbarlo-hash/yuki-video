@@ -1,4 +1,3 @@
-scripts/video-11190850.txt long
 scripts/short-why-time-speeds-up.txt
 scripts/short-ship-of-theseus.txt
 scripts/short-stoic-control.txt
