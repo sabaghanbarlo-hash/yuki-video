@@ -1,0 +1,41 @@
+name: Shorts queue
+# After every "Make video" run, start the next Short listed in queue/shorts.txt (one script per line).
+# The render workflow only holds one waiting run, so this feeds it one at a time.
+on:
+  workflow_run:
+    workflows: ["Make video"]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: shorts-queue
+  cancel-in-progress: false
+
+jobs:
+  next:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Start the next Short
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -s queue/shorts.txt ] || { echo "queue empty"; exit 0; }
+          waiting=$(gh run list --workflow generate.yml --json status --jq '[.[] | select(.status=="queued" or .status=="pending" or .status=="waiting")] | length')
+          if [ "$waiting" != "0" ]; then echo "a run is already waiting"; exit 0; fi
+          next=$(grep -m1 -E '^scripts/[A-Za-z0-9._-]+\.txt$' queue/shorts.txt || true)
+          if [ -z "$next" ]; then echo "nothing valid in queue"; exit 0; fi
+          gh workflow run generate.yml -f script="$next" -f format=short -f upload=true -f privacy=private
+          grep -v -x -F "$next" queue/shorts.txt > queue/shorts.tmp || true
+          mv queue/shorts.tmp queue/shorts.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add queue/shorts.txt
+          git commit -m "Shorts queue: started $next"
+          git push
