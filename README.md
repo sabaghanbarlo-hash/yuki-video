@@ -55,7 +55,7 @@ voices, sound effects, music and subtitles-free delivery are exactly the same as
 - **GitHub Actions**: *Make video* and *Preview scenes* have a `format` input (`long` / `short`).
 - **Locally**: `python generate.py scripts/short-sample.txt --format short` (add `--preview out/prev` for stills only).
 - **Length**: aim for 30-60 seconds (about 80-150 words). YouTube accepts vertical videos up to 3 minutes as Shorts; the run warns when yours is longer.
-- **Upload**: a Short gets `#Shorts` in its title and description and the `shorts` tags. No thumbnail is made for Shorts (YouTube picks a frame).
+- **Upload**: a Short gets `#Shorts` in its title and description and the `shorts` tags. Each Short also gets its own vertical thumbnail (1080x1920, `lab/thumbnail_short.py`): the hook in huge letters, Yuki reacting with the feeling of the opening, a topic icon sticker (or a stat badge when the opening quotes a number) and the channel chip. It is uploaded with the video. Make one by hand with `python make_thumbnail.py scripts/short-sample.txt --format short --out output/short.jpg`. (YouTube may show a custom thumbnail only on some surfaces for Shorts, such as the channel page and search.)
 
 ## Collage look (`--style collage`)
 

@@ -247,12 +247,11 @@ jobs:
             -f auto_continue="$AUTO" -f attempt="$next"
 
       - name: Make the thumbnail
-        if: ${{ github.event.inputs.format != 'short' }}
         continue-on-error: true
         run: |
           name=$(basename "${SCRIPT%.txt}")
           STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
-          python -u make_thumbnail.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --out "output/$name.jpg"
+          python -u make_thumbnail.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --format "${FORMAT:-long}" --out "output/$name.jpg"
 
       - uses: actions/upload-artifact@v4
         with:
