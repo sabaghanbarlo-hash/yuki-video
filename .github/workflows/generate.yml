@@ -31,7 +31,7 @@ on:
         description: "Upload to the YouTube channel? (true/false)"
         default: "false"
       privacy:
-        description: "YouTube visibility: private, unlisted or public"
+        description: "Ignored - every upload is always private"
         default: "private"
       auto_continue:
         description: "Long script? If the 6 hour limit is hit, start the next run automatically (true/false)"
@@ -62,7 +62,7 @@ jobs:
       VOICE: ${{ github.event.inputs.voice }}
       ENERGY: ${{ github.event.inputs.energy }}
       UPLOAD: ${{ github.event.inputs.upload }}
-      PRIVACY: ${{ github.event.inputs.privacy }}
+      PRIVACY: private
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       YUKI_GEMINI_VOICE: ${{ vars.YUKI_GEMINI_VOICE }}
       YUKI_GEMINI_TTS_MODEL: ${{ vars.YUKI_GEMINI_TTS_MODEL }}
@@ -269,6 +269,7 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           FORMAT: ${{ github.event.inputs.format }}
+          PRIVACY: private
         run: |
           name=$(basename "${SCRIPT%.txt}")
           mkdir -p results
