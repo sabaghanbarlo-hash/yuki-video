@@ -135,7 +135,7 @@ jobs:
         run: |
           pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
           pip install "transformers>=5.10.0" accelerate pydub soundfile numpy
-          pip install --no-deps "git+https://github.com/debpalash/VoiceStudio.git"
+          pip install --no-deps "git+https://github.com/debpalash/VoiceStudio.git@42f0f93b8f741c681861866b850add73501262ae"
           pip install pyworld || echo "pyworld not available: questions will not get the rising tone"
           python -c "import omnivoice; from omnivoice import OmniVoice; print('Voice Studio engine ok')"
 
