@@ -9,7 +9,7 @@ Optional: PRIVACY (private|unlisted|public, default private), RESULT_JSON (where
 import json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 
 mp4, script = sys.argv[1], sys.argv[2]
-PRIVACY = os.environ.get("PRIVACY", "private")
+PRIVACY = "private"  # hard-wired: every upload is private, whatever PRIVACY/privacy input says
 IS_SHORT = os.environ.get("FORMAT", "long").strip().lower() == "short"
 need = [k for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN") if not os.environ.get(k)]
 if need:
