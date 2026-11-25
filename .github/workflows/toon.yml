@@ -1,0 +1,219 @@
+name: Toon video
+
+run-name: Toon video ${{ github.event.inputs.job }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_text:
+        description: "The script itself (the Yuki Toon Studio website fills this in). Or leave empty and use the file below."
+        default: ""
+      script:
+        description: "Or a script file in this repo, e.g. scripts/my-video.txt"
+        default: ""
+      voice:
+        description: "voicestudio (your cloned voice) or babble (fast test sound, not speech)"
+        default: "voicestudio"
+      format:
+        description: "long (16:9) or short (9:16)"
+        default: "long"
+      max_sentences:
+        description: "0 = the whole script, or only the first N sentences (for tests)"
+        default: "0"
+      seed:
+        description: "Different arrangement of the same script"
+        default: "0"
+      upload:
+        description: "Upload to the Yuki's Mind Lab YouTube channel when done? (always private)"
+        default: "true"
+      job:
+        description: "Job id from the website (names the release web-<job>)"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sentences: ${{ steps.p.outputs.sentences }}
+      shards: ${{ steps.p.outputs.shards }}
+      matrix: ${{ steps.p.outputs.matrix }}
+      voice: ${{ steps.p.outputs.voice }}
+    env:
+      SCRIPT_TEXT: ${{ github.event.inputs.script_text }}
+      SCRIPT_FILE: ${{ github.event.inputs.script }}
+      VOICE: ${{ github.event.inputs.voice }}
+      FORMAT: ${{ github.event.inputs.format }}
+      MAXS: ${{ github.event.inputs.max_sentences }}
+      SEED: ${{ github.event.inputs.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the script and plan the machines
+        id: p
+        run: |
+          [[ "$VOICE" == "voicestudio" || "$VOICE" == "babble" ]] || { echo "::error::voice must be voicestudio or babble"; exit 1; }
+          [[ "$FORMAT" == "long" || "$FORMAT" == "short" ]] || { echo "::error::format must be long or short"; exit 1; }
+          [[ "$MAXS" =~ ^[0-9]{1,4}$ ]] || MAXS=0
+          [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
+          mkdir -p toon/scripts
+          if [ -n "$SCRIPT_TEXT" ]; then
+            [ "${#SCRIPT_TEXT}" -le 60000 ] || { echo "::error::script too long (60000 characters max)"; exit 1; }
+            printf '%s\n' "$SCRIPT_TEXT" > toon/scripts/web-input.txt
+          else
+            [[ "$SCRIPT_FILE" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::give the script text, or a file like scripts/name.txt"; exit 1; }
+            test -f "$SCRIPT_FILE" || { echo "::error::$SCRIPT_FILE not found"; exit 1; }
+            cp "$SCRIPT_FILE" toon/scripts/web-input.txt
+          fi
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y fontconfig libgl1 libegl1 libfontconfig1 >/dev/null 2>&1 || true
+          pip install -q -r toon/requirements.txt
+          cp -r assets toon/assets
+          N=$(python toon/generate_toon.py toon/scripts/web-input.txt --count $( [ "$MAXS" != "0" ] && echo "--max-sentences $MAXS" ) | grep -Eo '^[0-9]+ sentences' | grep -Eo '^[0-9]+')
+          [ -n "$N" ] && [ "$N" -ge 1 ] || { echo "::error::no sentences found in the script"; exit 1; }
+          SH=$(( (N + 5) / 6 )); [ "$SH" -gt 20 ] && SH=20; [ "$SH" -lt 1 ] && SH=1
+          MATRIX=$(python -c "import json;print(json.dumps({'shard':list(range($SH))}))")
+          echo "sentences=$N" >> "$GITHUB_OUTPUT"; echo "shards=$SH" >> "$GITHUB_OUTPUT"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"; echo "voice=$VOICE" >> "$GITHUB_OUTPUT"
+          echo "### $N sentences, $SH machine(s) for the voice" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: script
+          path: toon/scripts/web-input.txt
+          retention-days: 3
+
+  voice:
+    needs: plan
+    if: ${{ needs.plan.outputs.voice == 'voicestudio' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      MAXS: ${{ github.event.inputs.max_sentences }}
+      SEED: ${{ github.event.inputs.seed }}
+      SHARDS: ${{ needs.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: script
+          path: toon/scripts
+      - name: Dependencies
+        run: |
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y ffmpeg espeak-ng fontconfig libgl1 libegl1 libfontconfig1 >/dev/null 2>&1 || true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r toon/requirements.txt
+      - name: Install Voice Studio (same pinned version as generate.yml)
+        run: |
+          pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5.10.0" accelerate pydub soundfile numpy
+          pip install --no-deps "git+https://github.com/debpalash/VoiceStudio.git@42f0f93b8f741c681861866b850add73501262ae"
+          pip install pyworld || echo "pyworld not available"
+          python -c "import omnivoice; from omnivoice import OmniVoice; print('Voice Studio engine ok')"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-voicestudio-v1
+      - name: Voice my share of the sentences
+        run: |
+          cp -r assets toon/assets
+          mkdir -p toon/voice
+          cp voice/ref.* toon/voice/ 2>/dev/null || true
+          cp -n voice/match.json toon/voice/ 2>/dev/null || true
+          src=$(ls voice/ref.* | grep -v '\.txt$' | head -1)
+          ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
+          EXTRA=""; [[ "$MAXS" =~ ^[0-9]{1,4}$ ]] && [ "$MAXS" != "0" ] && EXTRA="--max-sentences $MAXS"
+          python -u toon/generate_toon.py toon/scripts/web-input.txt --tts voicestudio --ref "$RUNNER_TEMP/ref.wav" --seed "${SEED:-0}" $EXTRA --shard "${{ matrix.shard }}/$SHARDS"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-${{ matrix.shard }}
+          path: toon/.work/web-input/voice/*.npy
+          retention-days: 3
+          if-no-files-found: error
+
+  render:
+    needs: [plan, voice]
+    if: ${{ always() && needs.plan.result == 'success' && (needs.voice.result == 'success' || needs.voice.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      VOICE: ${{ needs.plan.outputs.voice }}
+      FORMAT: ${{ github.event.inputs.format }}
+      MAXS: ${{ github.event.inputs.max_sentences }}
+      SEED: ${{ github.event.inputs.seed }}
+      UPLOAD: ${{ github.event.inputs.upload }}
+      JOB: ${{ github.event.inputs.job }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: script
+          path: toon/scripts
+      - name: Collect the finished voice
+        if: ${{ needs.plan.outputs.voice == 'voicestudio' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voice-*
+          merge-multiple: true
+          path: toon/.work/web-input/voice
+      - name: Dependencies
+        run: |
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y ffmpeg espeak-ng fontconfig libgl1 libegl1 libfontconfig1 >/dev/null 2>&1 || true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r toon/requirements.txt -r requirements.txt
+      - name: Render the video
+        run: |
+          [[ "$FORMAT" == "long" || "$FORMAT" == "short" ]] || FORMAT=long
+          [[ "$JOB" =~ ^[a-z0-9-]{4,40}$ ]] || JOB=""
+          echo "JOB=$JOB" >> "$GITHUB_ENV"
+          cp -r assets toon/assets
+          mkdir -p toon/voice output
+          cp voice/ref.* toon/voice/ 2>/dev/null || true
+          cp -n voice/match.json toon/voice/ 2>/dev/null || true
+          EXTRA=""; [[ "$MAXS" =~ ^[0-9]{1,4}$ ]] && [ "$MAXS" != "0" ] && EXTRA="--max-sentences $MAXS"
+          if [ "$VOICE" = "voicestudio" ]; then
+            src=$(ls voice/ref.* | grep -v '\.txt$' | head -1)
+            ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
+            python -u toon/generate_toon.py toon/scripts/web-input.txt --tts voicestudio --ref "$RUNNER_TEMP/ref.wav" --format "$FORMAT" --seed "${SEED:-0}" $EXTRA --out output/web-input.mp4
+          else
+            python -u toon/generate_toon.py toon/scripts/web-input.txt --tts babble --format "$FORMAT" --seed "${SEED:-0}" $EXTRA --out output/web-input.mp4
+          fi
+          ls -la output
+      - name: Thumbnail
+        continue-on-error: true
+        run: python toon/make_toon_thumbnail.py toon/scripts/web-input.txt --format "$FORMAT" --out output/web-input.jpg
+      - name: Publish as a release (download from the Releases page)
+        run: |
+          tag="toon-$(date +%Y%m%d-%H%M%S)"
+          [ -n "$JOB" ] && tag="web-$JOB"
+          files=(output/web-input.mp4); [ -f output/web-input.jpg ] && files+=(output/web-input.jpg)
+          gh release create "$tag" "${files[@]}" --title "Toon video ($VOICE)" --notes "Toon render. voice=$VOICE format=$FORMAT. YouTube upload: pending." --prerelease
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: output/*
+          retention-days: 7
+      - name: Upload to YouTube (Yuki's Mind Lab, always private)
+        if: ${{ github.event.inputs.upload == 'true' }}
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          PRIVACY: private
+        run: |
+          mkdir -p "$RUNNER_TEMP/res"
+          THUMBNAIL="output/web-input.jpg" RESULT_JSON="$RUNNER_TEMP/res/r.json" python -u publish_youtube.py output/web-input.mp4 toon/scripts/web-input.txt
+          url=$(python -c "import json;print(json.load(open('$RUNNER_TEMP/res/r.json')).get('url',''))" 2>/dev/null || true)
+          gh release edit "$TAG" --notes "Toon render. voice=$VOICE format=$FORMAT. YouTube (private): ${url:-uploaded}"

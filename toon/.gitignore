@@ -1,0 +1,7 @@
+.work/
+assets/
+voice/
+__pycache__/
+*.pyc
+output/
+scripts/web-input.txt
