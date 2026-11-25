@@ -1,0 +1,224 @@
+name: Make video (parallel voice)
+
+run-name: Make video (parallel voice) ${{ github.event.inputs.script }}
+
+# Same result as "Make video" with voice=voicestudio, but the narration is voiced by up to 20 machines at the same time
+# and then one machine renders the video.  "Make video" (generate.yml) is untouched and stays as the fallback.
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Script file, e.g. scripts/my-video.txt"
+        default: "scripts/sample.txt"
+      format:
+        description: "long (normal 16:9 video) or short (vertical 9:16 YouTube Short, always the Collage look)"
+        default: "long"
+      style:
+        description: "Look: auto (the director picks per scene), flat, voxel, toon or collage"
+        default: "auto"
+      media:
+        description: "Collage pictures: auto, ai, stock, local or drawn"
+        default: "drawn"
+      seed:
+        description: "Change this number to get a different arrangement of the same script"
+        default: "0"
+      upload:
+        description: "Upload to the YouTube channel when done? (always private)"
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-parallel
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sentences: ${{ steps.p.outputs.sentences }}
+      shards: ${{ steps.p.outputs.shards }}
+      matrix: ${{ steps.p.outputs.matrix }}
+      name: ${{ steps.p.outputs.name }}
+      format: ${{ steps.p.outputs.format }}
+      style: ${{ steps.p.outputs.style }}
+      media: ${{ steps.p.outputs.media }}
+      seed: ${{ steps.p.outputs.seed }}
+    env:
+      SCRIPT: ${{ github.event.inputs.script }}
+      FORMAT: ${{ github.event.inputs.format }}
+      STYLE: ${{ github.event.inputs.style }}
+      MEDIA: ${{ github.event.inputs.media }}
+      SEED: ${{ github.event.inputs.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Read the script and plan the machines
+        id: p
+        run: |
+          [[ "$SCRIPT" =~ ^scripts/[A-Za-z0-9._-]+\.txt$ ]] || { echo "::error::script must look like scripts/name.txt"; exit 1; }
+          test -f "$SCRIPT" || { echo "::error::$SCRIPT not found"; exit 1; }
+          ls voice/ref.* >/dev/null 2>&1 || { echo "::error::No voice sample. Add voice/ref.m4a (or .wav/.mp3), 10-30 seconds of your clean voice."; exit 1; }
+          [[ "$FORMAT" == "long" || "$FORMAT" == "short" ]] || FORMAT=long
+          if [ "$FORMAT" = "short" ]; then STYLE=collage; fi
+          [[ "$STYLE" == "auto" || "$STYLE" == "flat" || "$STYLE" == "voxel" || "$STYLE" == "toon" || "$STYLE" == "collage" ]] || { echo "::error::style must be auto, flat, voxel, toon or collage"; exit 1; }
+          [[ "$MEDIA" == "auto" || "$MEDIA" == "ai" || "$MEDIA" == "stock" || "$MEDIA" == "local" || "$MEDIA" == "drawn" ]] || MEDIA=drawn
+          [[ "$SEED" =~ ^[0-9]{1,6}$ ]] || SEED=0
+          pip install -q -r requirements.txt
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          N=$(python generate_parallel.py "$SCRIPT" --tts voicestudio --count $STYLE_ARG --media "$MEDIA" --format "$FORMAT" --seed "$SEED" --no-flow | grep -Eo '^[0-9]+ sentences' | grep -Eo '^[0-9]+' || true)
+          [ -n "$N" ] && [ "$N" -ge 1 ] || { echo "::error::no sentences found in the script"; exit 1; }
+          SH=$(( (N + 5) / 6 )); [ "$SH" -gt 20 ] && SH=20; [ "$SH" -lt 1 ] && SH=1
+          MATRIX=$(python -c "import json;print(json.dumps({'shard':list(range($SH))}))")
+          NAME=$(basename "${SCRIPT%.txt}")
+          {
+            echo "sentences=$N"; echo "shards=$SH"; echo "matrix=$MATRIX"; echo "name=$NAME"
+            echo "format=$FORMAT"; echo "style=$STYLE"; echo "media=$MEDIA"; echo "seed=$SEED"
+          } >> "$GITHUB_OUTPUT"
+          echo "### $N sentences, $SH machine(s) for the voice" >> "$GITHUB_STEP_SUMMARY"
+
+  voice:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      SCRIPT: ${{ github.event.inputs.script }}
+      FORMAT: ${{ needs.plan.outputs.format }}
+      STYLE: ${{ needs.plan.outputs.style }}
+      MEDIA: ${{ needs.plan.outputs.media }}
+      SEED: ${{ needs.plan.outputs.seed }}
+      SHARDS: ${{ needs.plan.outputs.shards }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: System dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
+          for i in 1 2 3; do
+            sudo apt-get update -y -o Acquire::Retries=3 || true
+            sudo apt-get install -y ffmpeg espeak-ng && break
+            echo "apt attempt $i failed, retrying..."; sleep 10
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Install Voice Studio (same pinned version as generate.yml)
+        run: |
+          pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5.10.0" accelerate pydub soundfile numpy
+          pip install --no-deps "git+https://github.com/debpalash/VoiceStudio.git@42f0f93b8f741c681861866b850add73501262ae"
+          pip install pyworld || echo "pyworld not available: questions will not get the rising tone"
+          python -c "import omnivoice; from omnivoice import OmniVoice; print('Voice Studio engine ok')"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-voicestudio-v1
+      - name: Voice my share of the sentences
+        run: |
+          src=$(ls voice/ref.* | grep -v '\.txt$' | head -1)
+          ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          rc=1
+          for attempt in 1 2 3 4 5 6; do
+            rc=0
+            timeout 19000 python -u generate_parallel.py "$SCRIPT" --tts voicestudio --ref "$RUNNER_TEMP/ref.wav" $STYLE_ARG --media "$MEDIA" --format "$FORMAT" --seed "$SEED" --no-flow --shard "$SHARD/$SHARDS" || rc=$?
+            [ "$rc" = 0 ] && break
+            if [ "$rc" = 124 ]; then echo "::warning::Stopped cleanly (memory or time) - continuing, attempt $attempt"; continue; fi
+            exit "$rc"
+          done
+          [ "$rc" = 0 ] || { echo "::error::this machine did not finish its sentences"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-${{ matrix.shard }}
+          path: .work/${{ needs.plan.outputs.name }}/voice/*.npy
+          retention-days: 3
+          if-no-files-found: error
+
+  render:
+    needs: [plan, voice]
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      SCRIPT: ${{ github.event.inputs.script }}
+      FORMAT: ${{ needs.plan.outputs.format }}
+      STYLE: ${{ needs.plan.outputs.style }}
+      MEDIA: ${{ needs.plan.outputs.media }}
+      SEED: ${{ needs.plan.outputs.seed }}
+      NAME: ${{ needs.plan.outputs.name }}
+      UPLOAD: ${{ github.event.inputs.upload }}
+      PRIVACY: private
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the finished voice
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voice-*
+          merge-multiple: true
+          path: .work/${{ needs.plan.outputs.name }}/voice
+      - name: System dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources /etc/apt/sources.list.d/mono-official-stable.list
+          for i in 1 2 3; do
+            sudo apt-get update -y -o Acquire::Retries=3 || true
+            sudo apt-get install -y ffmpeg espeak-ng && break
+            echo "apt attempt $i failed, retrying..."; sleep 10
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Render (the voice is already recorded)
+        run: |
+          mkdir -p output
+          echo "voiced sentences found: $(ls .work/$NAME/voice/*.npy | wc -l)"
+          src=$(ls voice/ref.* | grep -v '\.txt$' | head -1)
+          ffmpeg -y -v error -i "$src" -t 20 -ar 24000 -ac 1 "$RUNNER_TEMP/ref.wav"
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          python -u generate.py "$SCRIPT" --tts voicestudio --ref "$RUNNER_TEMP/ref.wav" --no-flow $STYLE_ARG --media "$MEDIA" --format "$FORMAT" --seed "$SEED" --out "output/$NAME.mp4"
+          ls -la output
+      - name: Make the thumbnail
+        continue-on-error: true
+        run: |
+          STYLE_ARG=""; [ "$STYLE" != "auto" ] && STYLE_ARG="--style $STYLE"
+          python -u make_thumbnail.py "$SCRIPT" --seed "$SEED" $STYLE_ARG --format "$FORMAT" --out "output/$NAME.jpg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: |
+            output/*.mp4
+            output/*.plan.json
+            output/*.jpg
+            output/*.credits.txt
+      - name: Upload to YouTube (always private)
+        if: ${{ github.event.inputs.upload == 'true' }}
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          mkdir -p results
+          THUMBNAIL="output/$NAME.jpg" RESULT_JSON="results/$NAME.json" python -u publish_youtube.py "output/$NAME.mp4" "$SCRIPT"
+      - name: Save the result link
+        if: ${{ github.event.inputs.upload == 'true' }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add results
+          git commit -m "Video published [skip ci]" || echo "nothing to commit"
+          git pull --rebase || true
+          git push || true
