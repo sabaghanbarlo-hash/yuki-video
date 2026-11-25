@@ -163,6 +163,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Collect the finished voice
+        id: dl1
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voice-*
+          merge-multiple: true
+          path: .work/${{ needs.plan.outputs.name }}/voice
+      - name: Wait a minute (the last voice file was still being saved)
+        if: ${{ steps.dl1.outcome == 'failure' }}
+        run: sleep 60
+      - name: Collect the finished voice (second try)
+        if: ${{ steps.dl1.outcome == 'failure' }}
         uses: actions/download-artifact@v4
         with:
           pattern: voice-*

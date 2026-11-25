@@ -158,7 +158,19 @@ jobs:
           name: script
           path: toon/scripts
       - name: Collect the finished voice
+        id: dl1
+        continue-on-error: true
         if: ${{ needs.plan.outputs.voice == 'voicestudio' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voice-*
+          merge-multiple: true
+          path: toon/.work/web-input/voice
+      - name: Wait a minute (the last voice file was still being saved)
+        if: ${{ needs.plan.outputs.voice == 'voicestudio' && steps.dl1.outcome == 'failure' }}
+        run: sleep 60
+      - name: Collect the finished voice (second try)
+        if: ${{ needs.plan.outputs.voice == 'voicestudio' && steps.dl1.outcome == 'failure' }}
         uses: actions/download-artifact@v4
         with:
           pattern: voice-*
