@@ -68,6 +68,8 @@ jobs:
       YUKI_GEMINI_TTS_MODEL: ${{ vars.YUKI_GEMINI_TTS_MODEL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
       - name: Check inputs
         run: |
