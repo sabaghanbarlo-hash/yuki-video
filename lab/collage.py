@@ -44,27 +44,57 @@ def paper():
 
 
 # ------------------------------------------------------------------ geometry
+# Vertical (Short) pictures are drawn smaller than the old full-page panels so they read clearly on a phone, sit well clear of
+# Yuki at the bottom and of the Shorts UI (title / buttons) on the edges. 1.0 = the old size.
+PORTRAIT_PANEL_SCALE = 0.72
+PORTRAIT_PANEL_CENTER_Y = 400      # where the picture block is centred (frame is 1280 tall; Yuki lives below ~800)
+PORTRAIT_ICON_SCALE = 0.72
+
+
+def _shrink_panels(panels, k=None, cy=None):
+    """Scale a list of (x, y, w, h) rects about the middle of their bounding box by k, then centre the block at y = cy."""
+    k = PORTRAIT_PANEL_SCALE if k is None else k
+    cy = PORTRAIT_PANEL_CENTER_Y if cy is None else cy
+    if not panels or k == 1.0:
+        return panels
+    x0 = min(p[0] for p in panels); y0 = min(p[1] for p in panels)
+    x1 = max(p[0] + p[2] for p in panels); y1 = max(p[1] + p[3] for p in panels)
+    mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    out = []
+    for (x, y, w, h) in panels:
+        nw, nh = int(round(w * k)), int(round(h * k))
+        nx = int(round(mx + (x - mx) * k))
+        ny = int(round(cy + (y - my) * k))
+        out.append((nx, ny, nw, nh))
+    return out
+
+
 def geometry_portrait(layout, side):
-    """The vertical (Short) page, 720 x 1280: the picture on top, Yuki big at the bottom (she alternates left / right like she does in the wide video)."""
+    """The vertical (Short) page, 720 x 1280: the picture on top (smaller, centred in the safe area), Yuki big at the bottom (she alternates left / right like she does in the wide video)."""
     r = side == "r"
     yx = 235 if r else W - 235
     if layout == "full":
-        return dict(panels=[(24, 48, 672, 690)], yuki=(yx, H + 30, 0.88))
-    if layout == "mid":
-        return dict(panels=[(60, 80, 600, 640)], yuki=(yx, H + 30, 0.88))
-    if layout == "center":
-        return dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.86))
-    if layout == "split":
-        return dict(panels=[(60, 36, 600, 330), (60, 386, 600, 330)], yuki=(yx, H + 34, 0.86))
-    if layout == "fullbleed":
+        g = dict(panels=[(24, 48, 672, 690)], yuki=(yx, H + 30, 0.88))
+    elif layout == "mid":
+        g = dict(panels=[(60, 80, 600, 640)], yuki=(yx, H + 30, 0.88))
+    elif layout == "center":
+        g = dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.86))
+    elif layout == "split":
+        g = dict(panels=[(60, 36, 600, 330), (60, 386, 600, 330)], yuki=(yx, H + 34, 0.86))
+    elif layout == "fullbleed":
         return dict(panels=[(0, 0, W, H)], yuki=(yx, H + 40, 0.8))
-    if layout == "title":
-        return dict(panels=[(40, 250, 640, 470)], yuki=(yx, H + 34, 0.86), text=(30, 44, 660, 190))
-    if layout == "icons":
+    elif layout == "title":
+        g = dict(panels=[(40, 250, 640, 470)], yuki=(yx, H + 34, 0.86), text=(30, 44, 660, 190))
+        g["panels"] = _shrink_panels(g["panels"], cy=PORTRAIT_PANEL_CENTER_Y + 80)
+        return g
+    elif layout == "icons":
         return dict(panels=[], yuki=(W // 2, H + 36, 0.8))
-    if layout == "stat":
+    elif layout == "stat":
         return dict(panels=[], yuki=(yx, H + 30, 0.88), text=(30, 170, 660, 400))
-    return dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.78))
+    else:
+        g = dict(panels=[(40, 100, 640, 600)], yuki=(yx, H + 30, 0.78))
+    g["panels"] = _shrink_panels(g["panels"])
+    return g
 
 
 def geometry(layout, side):
@@ -476,7 +506,7 @@ class CollageStage:
                 cx, cy = pos[i]
             cv = Cv(300, 300, 2)
             try:
-                E.draw_entity(cv, it["entity"], 150, 130, 190 * max(0.05, p), t_abs, pal, shot["seed"] + i)
+                E.draw_entity(cv, it["entity"], 150, 130, 190 * (PORTRAIT_ICON_SCALE if H > W else 1.0) * max(0.05, p), t_abs, pal, shot["seed"] + i)
             except Exception:
                 pass
             im = cv.image()
