@@ -62,6 +62,54 @@ else:
         "Yuki's Mind Lab: psychology, philosophy and science explained simply, for the overthinkers.\n\n#psychology #philosophy #selfimprovement"
 TAGS = {"space": "space", "earth": "earth science", "ocean": "ocean", "weather": "weather", "volcano": "volcano", "ice": "ice", "desert": "desert", "nature": "nature",
         "body": "human body", "brain": "brain", "micro": "biology", "physics": "physics", "tech": "technology", "city": "cities", "history": "history", "disaster": "disasters"}
+def _stamp(sec):
+    sec = int(sec)
+    h, m, s = sec // 3600, (sec % 3600) // 60, sec % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _chapter_label(sc):
+    """The scene's heading, or (if it has none) the start of what is said in it, cut to a short readable label."""
+    t = re.sub(r"\s+", " ", sc.get("heading") or "").strip()
+    if not t:
+        t = re.split(r"(?<=[.!?])\s", re.sub(r"\s+", " ", sc.get("text") or "").strip())[0]
+    t = t.strip(" .,;:-")
+    if len(t) > 60:
+        t = t[:60].rsplit(" ", 1)[0].rstrip(",;:- ") + "..."
+    return (t[:1].upper() + t[1:]) if t else ""
+
+
+def _chapters(mp4_path):
+    """YouTube chapters ('0:00 Intro' ...) from the plan.json the renderer writes next to the video.
+    YouTube only turns them into chapters if the first is 0:00, there are at least 3, and each lasts 10 s or more."""
+    try:
+        plan = json.load(open(os.path.splitext(mp4_path)[0] + ".plan.json", encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    out = []
+    for sc in plan.get("scenes", []):
+        if sc.get("kind") in ("title", "outro"):                  # the title card (first seconds) and the outro stay inside the neighbouring chapter
+            continue
+        label = _chapter_label(sc)
+        if not label:
+            continue
+        t0 = 0 if not out else float(sc.get("t0", 0))
+        if out and t0 - out[-1][0] < 10:                          # too short to be its own chapter: leave it inside the previous one
+            continue
+        out.append((t0, label))
+    if len(out) >= 2 and float(plan["scenes"][-1].get("t1", 0)) - out[-1][0] < 10:   # a last chapter under 10 s breaks the rule too
+        out.pop()
+    if len(out) < 3:
+        return ""
+    return "Chapters:\n" + "\n".join(f"{_stamp(t)} {label}" for t, label in out)
+
+
+if not IS_SHORT:                                                # long videos get timestamps in the description (chapters)
+    _ch = _chapters(mp4)
+    if _ch:
+        desc = desc.rstrip() + "\n\n" + _ch
+        print("Chapters added to the description:\n" + _ch, flush=True)
+
 _cred = os.path.splitext(mp4)[0] + ".credits.txt"
 if _cred and os.path.exists(_cred):
     desc = desc + "\n\n" + open(_cred, encoding="utf-8").read().strip()
