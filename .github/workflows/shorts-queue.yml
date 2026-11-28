@@ -1,43 +1,64 @@
 name: Shorts queue
-# After every "Make video" run, start the next script listed in queue/shorts.txt (one per line: scripts/name.txt [long|short], default short).
-# The render workflow only holds one waiting run, so this feeds it one at a time.
+
+# The line of waiting videos. A "Make video" run that finds another video being made writes itself into queue/pending.jsonl and stops
+# (see its "gate" job). Every time a run finishes, this workflow starts the next waiting one, so you can send any number of scripts
+# (long or short) at once and they are made one after the other, in the order they were sent.
+# Old way still works: scripts listed in queue/shorts.txt (one per line: scripts/name.txt [long|short]) are started after the pending ones.
 on:
   workflow_run:
-    workflows: ["Make video"]
+    workflows: ["Make video", "Make video (parallel voice)"]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: write
   actions: write
 
-concurrency:
-  group: shorts-queue
-  cancel-in-progress: false
-
 jobs:
   next:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Start the next Short
+      - name: Start the next waiting video
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [ -s queue/shorts.txt ] || { echo "queue empty"; exit 0; }
-          waiting=$(gh run list --workflow generate.yml --json status --jq '[.[] | select(.status=="queued" or .status=="pending" or .status=="waiting")] | length')
-          if [ "$waiting" != "0" ]; then echo "a run is already waiting"; exit 0; fi
-          line=$(grep -m1 -E '^scripts/[A-Za-z0-9._-]+\.txt( (long|short))?$' queue/shorts.txt || true)
-          if [ -z "$line" ]; then echo "nothing valid in queue"; exit 0; fi
-          next=${line%% *}
-          fmt=short; case "$line" in *" long") fmt=long;; esac
-          gh workflow run generate.yml -f script="$next" -f format="$fmt" -f upload=true -f privacy=private
-          grep -v -x -F "$line" queue/shorts.txt > queue/shorts.tmp || true
-          mv queue/shorts.tmp queue/shorts.txt
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add queue/shorts.txt
-          git commit -m "Shorts queue: started $next"
-          git push
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          for WF in generate.yml generate-parallel.yml; do
+            for round in 1 2 3 4 5 6 7 8 9 10; do
+              active=$(gh run list --workflow "$WF" --limit 100 --json status --jq '[.[] | select(.status=="in_progress" or .status=="queued" or .status=="waiting" or .status=="pending")] | length')
+              if [ "$active" != "0" ]; then echo "$WF is busy: nothing to start."; break; fi
+              git fetch -q origin main; git reset -q --hard origin/main
+              touch queue/pending.jsonl queue/shorts.txt
+              n=$(awk -v key="\"wf\":\"$WF\"" 'index($0,key){print NR; exit}' queue/pending.jsonl)
+              inputs=""
+              if [ -n "$n" ]; then
+                inputs=$(sed -n "${n}p" queue/pending.jsonl | jq -c '.inputs')
+                sed -i "${n}d" queue/pending.jsonl
+                msg="Queue: started $(echo "$inputs" | jq -r '.script')"
+                git add queue/pending.jsonl
+              elif [ "$WF" = "generate.yml" ]; then
+                line=$(grep -m1 -E '^scripts/[A-Za-z0-9._-]+\.txt( (long|short))?$' queue/shorts.txt || true)
+                [ -n "$line" ] || { echo "$WF: nothing waiting."; break; }
+                fmt=short; case "$line" in *" long") fmt=long;; esac
+                inputs=$(jq -cn --arg s "${line%% *}" --arg f "$fmt" '{script:$s,format:$f,upload:"true",privacy:"private"}')
+                grep -v -x -F "$line" queue/shorts.txt > queue/shorts.tmp || true
+                mv queue/shorts.tmp queue/shorts.txt
+                msg="Queue: started ${line%% *}"
+                git add queue/shorts.txt
+              else
+                echo "$WF: nothing waiting."; break
+              fi
+              git commit -q -m "$msg [skip ci]"
+              if git push -q origin HEAD:main; then       # the push is the lock: only one starter can take this entry
+                echo "$inputs" | gh workflow run "$WF" --ref main --json
+                echo "Started: $inputs"
+                break
+              fi
+              sleep $((RANDOM % 6 + 2))
+            done
+          done
