@@ -29,13 +29,56 @@ on:
 
 permissions:
   contents: write
-
-concurrency:
-  group: render-parallel
-  cancel-in-progress: false
+  actions: read
 
 jobs:
+  # Every run first asks "is another generate-parallel.yml run busy?". If so it writes itself into queue/pending.jsonl and finishes at once (green, nothing rendered);
+  # the "Video queue" workflow then starts it, in order, when the earlier run is done. So any number of scripts can be sent at once.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      go: ${{ steps.g.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - id: g
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WF: generate-parallel.yml
+          RUN_ID: ${{ github.run_id }}
+          INPUTS: ${{ toJSON(github.event.inputs) }}
+        run: |
+          older=$(gh run list --workflow "$WF" --limit 100 --json databaseId,status \
+            --jq "[.[] | select(.databaseId < $RUN_ID) | select(.status==\"in_progress\" or .status==\"queued\" or .status==\"waiting\" or .status==\"pending\")] | length")
+          if [ "$older" = "0" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "Nothing ahead of this run: starting now."; exit 0; fi
+          echo "go=false" >> "$GITHUB_OUTPUT"
+          attempt=$(echo "$INPUTS" | jq -r '.attempt // "1"')
+          entry=$(jq -cn --arg wf "$WF" --argjson inputs "$INPUTS" '{wf:$wf,inputs:$inputs}')
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          for try in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin main; git reset -q --hard origin/main
+            mkdir -p queue; touch queue/pending.jsonl
+            if [ "$attempt" -gt 1 ] 2>/dev/null; then { echo "$entry"; cat queue/pending.jsonl; } > queue/pending.tmp   # a continuation of a long video goes first
+            else { cat queue/pending.jsonl; echo "$entry"; } > queue/pending.tmp; fi
+            mv queue/pending.tmp queue/pending.jsonl
+            git add queue/pending.jsonl
+            git commit -q -m "Queue: waiting $(echo "$INPUTS" | jq -r '.script') [skip ci]"
+            if git push -q origin HEAD:main; then
+              pos=$(grep -c -F "\"wf\":\"$WF\"" queue/pending.jsonl || true)
+              echo "Another video is being made. Queued (position $pos in the line); it starts by itself when the earlier ones are done."
+              echo "### Queued: $(echo "$INPUTS" | jq -r '.script')" >> "$GITHUB_STEP_SUMMARY"
+              echo "Another video is being made, so this one is waiting in the line (position $pos). It starts by itself as soon as the earlier ones finish." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep $((RANDOM % 6 + 2))
+          done
+          echo "::error::Could not write to the queue after several tries. Run it again."; exit 1
+
   plan:
+    needs: gate
+    if: ${{ needs.gate.outputs.go == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
